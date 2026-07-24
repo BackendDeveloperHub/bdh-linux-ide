@@ -7,7 +7,7 @@ pkgdesc="A simple, lightweight terminal-based IDE using Tmux, Ranger, and Nano."
 arch=('any')
 url="https://github.com/BackendDeveloperHub/bdh-linux-ide"
 license=('GNU General Public License')
-depends=('tmux' 'ranger' 'nano' 'bash' 'cage' 'xorg-xwayland' 'firefox' 'wlr-randr')
+depends=('tmux' 'ranger' 'nano' 'bash' 'cage' 'xorg-xwayland' 'firefox' 'wlr-randr' 'postgresql')
 source=("git+$url.git")
 sha256sums=('SKIP')
 
