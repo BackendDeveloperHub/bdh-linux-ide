@@ -2,19 +2,19 @@
 
 # Sudo பர்மிஷன் உள்ளதா என சரிபார்க்க...
 if [ "$EUID" -ne 0 ]; then
-  echo "எச்சரிக்கை: Global ஆக இன்ஸ்டால் செய்ய Root உரிமை தேவை!"
-  echo "தயவுசெய்து இதை 'sudo ./install.sh' என ரன் செய்யவும்."
+  echo "Warning: Global installation requires Root privilege!"
+  echo "Please run this as 'sudo ./install.sh'."
   exit
 fi
 
-echo "BDH Linux IDE சிஸ்டம் முழுவதும் (Global) இன்ஸ்டால் செய்யப்படுகிறது..."
+echo "Installing BDH Linux IDE globally..."
 
 # Dependencies இன்ஸ்டால் செய்ய...
 if [ -f "packages.txt" ]; then
-    echo "தேவையான பேக்கேஜ்கள் இன்ஸ்டால் செய்யப்படுகின்றன..."
+    echo "Installing required packages..."
     pacman -S --needed $(cat packages.txt | tr '\n' ' ')
 else
-    echo "எச்சரிக்கை: packages.txt கோப்பு காணவில்லை!"
+    echo "Warning: packages.txt not found!"
 fi
 
 # Global Paths
@@ -28,7 +28,7 @@ mkdir -p "$CONFIG_DIR"
 # =========================================================
 # 1. Main executable-ஐ காப்பி செய்தல்
 # =========================================================
-echo "Executable ஃபைல் செட் செய்யப்படுகிறது..."
+echo "Setting up main executable..."
 
 # காப்பி செய்வதற்கு முன்பே அசல் ஃபைலில் உள்ள \r பிழையை நிரந்தரமாக நீக்க:
 sed -i 's/\r$//' bdh-ide
@@ -43,11 +43,11 @@ chmod +x "$INSTALL_DIR/bdh-ide"
 # =========================================================
 # 2. bdh-ide-kill கமாண்டை உருவாக்குதல் 
 # =========================================================
-echo "Kill கமாண்ட் உருவாக்கப்படுகிறது..."
+echo "Creating kill command..."
 cat << 'EOF' > "$INSTALL_DIR/bdh-ide-kill"
 #!/bin/bash
 tmux kill-server 2>/dev/null
-echo -e "\e[1;32mBDH IDE செஷன்கள் வெற்றிகரமாக நிறுத்தப்பட்டன!\e[0m"
+echo -e "\e[1;32mBDH IDE sessions stopped successfully!\e[0m"
 EOF
 chmod +x "$INSTALL_DIR/bdh-ide-kill"
 # =========================================================
@@ -62,16 +62,16 @@ chmod +x "$INSTALL_DIR/bdh-browser"
 # =========================================================
 
 # =========================================================
-# 4. PostgreSQL Setup & bdh-db கமாண்டை இன்ஸ்டால் செய்தல் (புதிதாக சேர்க்கப்பட்டது)
+# 4. PostgreSQL Setup & bdh-db கமாண்டை இன்ஸ்டால் செய்தல் 
 # =========================================================
-echo "PostgreSQL Database செட் செய்யப்படுகிறது..."
+echo "Setting up PostgreSQL Database..."
 
 # Data Folder காலியாக இருந்தால் மட்டும் initdb கமாண்டை ரன் செய்யவும் (எரரைத் தவிர்க்க)
 if [ -z "$(ls -A /var/lib/postgres/data 2>/dev/null)" ]; then
     su - postgres -c "initdb -D /var/lib/postgres/data"
     echo "PostgreSQL initialized successfully."
 else
-    echo "PostgreSQL already Initialize successfully."
+    echo "PostgreSQL is already initialized."
 fi
 
 # டேட்டாபேஸ் சர்வீஸை Start மற்றும் Enable செய்ய
@@ -85,9 +85,18 @@ chmod +x "$INSTALL_DIR/bdh-db"
 # =========================================================
 
 # =========================================================
-# 5. Configuration file-களை காப்பி செய்தல்
+# 5. bdh-record கமாண்டை இன்ஸ்டால் செய்தல் (புதிதாக சேர்க்கப்பட்டது)
 # =========================================================
-echo "Config ஃபைல்கள் காப்பி செய்யப்படுகின்றன..."
+echo "Installing bdh-record shortcut..."
+sed -i 's/\r$//' bdh-record 2>/dev/null
+cp bdh-record "$INSTALL_DIR/bdh-record"
+chmod +x "$INSTALL_DIR/bdh-record"
+# =========================================================
+
+# =========================================================
+# 6. Configuration file-களை காப்பி செய்தல்
+# =========================================================
+echo "Copying configuration files..."
 cp configs/tmux.conf "$CONFIG_DIR/tmux.conf"
 cp configs/nanorc "$CONFIG_DIR/nanorc"
 
@@ -97,8 +106,8 @@ cp configs/ide_layout.tz "$CONFIG_DIR/ide_layout.tz"
 # Config ஃபைல்களுக்கு அனைவருக்கும் படிக்கும் (Read) உரிமை கொடுக்க
 chmod -R 755 "$CONFIG_DIR"
 
-# 6. பழைய Tmux செஷனை அழித்தல் (புதிய அப்டேட்கள் உடனடியாக வேலை செய்ய)
-echo "பழைய செஷன்கள் ரீசெட் செய்யப்படுகின்றன..."
+# 7. பழைய Tmux செஷனை அழித்தல் (புதிய அப்டேட்கள் உடனடியாக வேலை செய்ய)
+echo "Resetting old sessions..."
 if [ -n "$SUDO_USER" ]; then
     sudo -u $SUDO_USER tmux kill-server 2>/dev/null
 else
@@ -111,4 +120,5 @@ echo "✅ IDE open: bdh-ide"
 echo "✅ IDE full close : bdh-ide-kill"
 echo "✅ Browser open: bdh-browser <URL>"
 echo "✅ Database- postgresql open: bdh-db"
+echo "✅ Record screen: bdh-record"
 echo "---------------------------------------------------"
