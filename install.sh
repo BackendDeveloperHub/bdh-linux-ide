@@ -69,9 +69,9 @@ echo "PostgreSQL Database செட் செய்யப்படுகிற�
 # Data Folder காலியாக இருந்தால் மட்டும் initdb கமாண்டை ரன் செய்யவும் (எரரைத் தவிர்க்க)
 if [ -z "$(ls -A /var/lib/postgres/data 2>/dev/null)" ]; then
     su - postgres -c "initdb -D /var/lib/postgres/data"
-    echo "PostgreSQL வெற்றிகரமாக Initialize செய்யப்பட்டது."
+    echo "PostgreSQL initialized successfully."
 else
-    echo "PostgreSQL ஏற்கனவே Initialize செய்யப்பட்டுள்ளது."
+    echo "PostgreSQL already Initialize successfully."
 fi
 
 # டேட்டாபேஸ் சர்வீஸை Start மற்றும் Enable செய்ய
@@ -105,10 +105,10 @@ else
     tmux kill-server 2>/dev/null
 fi
 
-echo "Global இன்ஸ்டாலேஷன் வெற்றிகரமாக முடிந்தது!"
+echo "Global install complete!"
 echo "---------------------------------------------------"
-echo "✅ IDE-ஐ திறக்க: bdh-ide"
-echo "✅ IDE-ஐ முழுமையாக மூட: bdh-ide-kill"
-echo "✅ Browser-ஐ திறக்க: bdh-browser <URL>"
-echo "✅ Database-ஐ திறக்க: bdh-db"
+echo "✅ IDE open: bdh-ide"
+echo "✅ IDE full close : bdh-ide-kill"
+echo "✅ Browser open: bdh-browser <URL>"
+echo "✅ Database- postgresql open: bdh-db"
 echo "---------------------------------------------------"
