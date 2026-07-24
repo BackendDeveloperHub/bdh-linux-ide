@@ -1,0 +1,35 @@
+#!/bin/bash
+
+# Create a dedicated folder for recording files
+mkdir -p ~/bdh-recordings
+cd ~/bdh-recordings
+
+# Generate filename using current timestamp
+FILE_NAME="demo_$(date +%s)"
+
+echo "🎥 BDH Screen Recorder Started!"
+echo "🔴 Recording in progress... Type 'exit' and press Enter to stop."
+echo "---------------------------------------------------"
+
+# 1. Record terminal using Asciinema
+asciinema rec ${FILE_NAME}.cast
+
+echo "---------------------------------------------------"
+echo "⏳ Converting to GIF... (Please wait a few seconds)"
+
+# 2. Convert to GIF using agg
+agg ${FILE_NAME}.cast ${FILE_NAME}.gif
+
+echo "✅ GIF is ready! Starting local server to send to your phone..."
+
+# 3. Find Laptop's Local IP address
+LOCAL_IP=$(ip -4 addr show | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | grep -v '127.0.0.1' | head -n 1)
+
+echo "---------------------------------------------------"
+echo "📱 Type the following link in your phone's browser:"
+echo "👉 http://${LOCAL_IP}:8000"
+echo "---------------------------------------------------"
+echo "(Once downloaded, press Ctrl + C to stop the server)"
+
+# 4. Start Python HTTP Server
+python -m http.server 8000
