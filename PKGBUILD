@@ -22,6 +22,7 @@ package() {
   install -Dm755 bdh-ide "$pkgdir/usr/bin/bdh-ide"
   install -Dm755 bdh-ide-kill "$pkgdir/usr/bin/bdh-ide-kill"
   install -Dm755 bdh-browser "$pkgdir/usr/bin/bdh-browser"
+  install -Dm755 bdh-db "$pkgdir/usr/bin/bdh-db"
 
   # Config ஃபைல்களை இன்ஸ்டால் செய்ய
   install -Dm644 configs/tmux.conf "$pkgdir/etc/bdh-ide/tmux.conf"
