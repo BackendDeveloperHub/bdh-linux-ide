@@ -7,3 +7,4 @@ bat
 eza
 git
 cage
+postgresql
