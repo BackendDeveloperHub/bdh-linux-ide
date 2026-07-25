@@ -7,16 +7,16 @@ CONFIG_DIR="/etc/bdh-ide"
 # =========================================================
 # ⚙️ CUSTOM WINDOW SIZES
 # =========================================================
-NANO_WIDTH=70        # Nano வலதுபுறம் எடுக்கும் இடம் (70%)
-TERMINAL_HEIGHT=40   # Terminal இடதுபுறம் கீழே எடுக்கும் இடம் (40%)
+NANO_WIDTH=70        # Nano takes 70% space on the right
+TERMINAL_HEIGHT=40   # Terminal takes 40% space on the bottom left
 # =========================================================
 
 WRAPPER="/tmp/bdh-nano-wrapper.sh"
 
-# Nesting error varaama irukka, already inside tmux na TMUX var-a unset pannurom
+# Unset TMUX to avoid nesting errors if already inside a tmux session
 unset TMUX
 
-# --- Wrapper script generate pannurom (ella run-lum fresh-a create aagum) ---
+# --- Generate wrapper script (created fresh on every run) ---
 cat <<EOF > "$WRAPPER"
 #!/bin/bash
 [ "\$1" == "--" ] && shift
@@ -24,52 +24,52 @@ cat <<EOF > "$WRAPPER"
 FILE_PATH="\$1"
 DIR_PATH=\$(dirname "\$FILE_PATH")
 
-# 1. Nano pane-la (pane 2 - வலதுபுறம்) file open pannurom
+# 1. Open file in Nano pane (Pane 2 - Right side)
 tmux send-keys -t 2 C-c
 sleep 0.1
 tmux send-keys -t 2 "nano \"\$FILE_PATH\"" C-m
 
-# 2. Terminal pane-la (pane 1 - இடதுபுறம் கீழே) andha file-oda dir-ku cd pannurom
+# 2. Change directory in Terminal pane (Pane 1 - Bottom left)
 tmux send-keys -t 1 C-c
 sleep 0.1
 tmux send-keys -t 1 "cd \"\$DIR_PATH\" && clear && ls" C-m
 
-# 3. Cursor-a Nano-kku thirumba mathurom
+# 3. Switch cursor focus to Nano pane
 tmux select-pane -t 2
 EOF
 chmod +x "$WRAPPER"
 
-# --- Session already irundha, adha kill pannitu fresh-a start pandrom ---
+# --- Kill existing session if it's already running ---
 if tmux has-session -t "$SESSION" 2>/dev/null; then
     tmux kill-session -t "$SESSION"
 fi
 
-# --- Puthu session + 3-pane layout create pandrom (tmux.conf இணைக்கப்பட்டுள்ளது) ---
+# --- Create new session + 3-pane layout ---
 tmux -f "$CONFIG_DIR/tmux.conf" new-session -d -s "$SESSION" -n "BDH-IDE"
 
-# 1. முதலில் திரையை இடது / வலதாகப் பிரிக்கிறோம் (வலதுபுறம் Nano 70%)
+# 1. Split screen left/right (Right side Nano 70%)
 tmux split-window -h -p "$NANO_WIDTH" -t "$SESSION"
 
-# 2. இடதுபுறம் உள்ள பேனை (Pane 0) மேலேயும் கீழேயும் பிரிக்கிறோம் (கீழே Terminal 40%)
+# 2. Split left pane (Pane 0) top/bottom (Bottom Terminal 40%)
 tmux select-pane -t "$SESSION:0.0"
 tmux split-window -v -p "$TERMINAL_HEIGHT" -t "$SESSION:0.0"
 
-# இப்போது பேன்கள் (Panes) வரிசை:
-# 0 = Ranger (இடதுபுறம் மேலே)
-# 1 = Terminal (இடதுபுறம் கீழே)
-# 2 = Nano (வலதுபுறம் முழுவதும்)
+# Current Pane Layout:
+# 0 = Ranger (Top Left)
+# 1 = Terminal (Bottom Left)
+# 2 = Nano (Entire Right Side)
 
 # 1. Ranger pane (Pane 0)
 tmux select-pane -t "$SESSION:0.0"
 tmux send-keys -t "$SESSION:0.0" \
     "export DISPLAY=''; export WAYLAND_DISPLAY=''; export EDITOR=$WRAPPER; clear; ranger" C-m
 
-# 2. Nano welcome pane (Pane 2 - வலதுபுறம்)
+# 2. Nano welcome pane (Pane 2)
 tmux select-pane -t "$SESSION:0.2"
 tmux send-keys -t "$SESSION:0.2" \
-    "clear; echo -e '\n  \e[1;32mBDH IDE-க்கு வரவேற்கிறோம்!\e[0m\n  Ranger-ல் ஒரு ஃபைலை \e[1;33mEnter\e[0m செய்தால் அது இங்கே ஓபன் ஆகும்.\n  மேலும், இடதுபுறம் உள்ள Terminal-லும் \e[1;36mPath தானாக மாறும்!\e[0m\n'" C-m
+    "clear; echo -e '\n  \e[1;32mWelcome to BDH IDE!\e[0m\n  Press \e[1;33mEnter\e[0m on a file in Ranger to open it here.\n  The Terminal on the left will \e[1;36mauto-sync the directory path!\e[0m\n'" C-m
 
-# 3. Main terminal pane (Pane 1 - இடதுபுறம் கீழே) - Cursor இங்கு நிற்கும்
+# 3. Main terminal pane (Pane 1) - Leave cursor here
 tmux select-pane -t "$SESSION:0.1"
 
 tmux attach -t "$SESSION"
