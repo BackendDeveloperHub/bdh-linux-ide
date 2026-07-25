@@ -62,7 +62,7 @@ tmux split-window -v -p "$TERMINAL_HEIGHT" -t "$SESSION:0.0"
 # 1. Ranger pane (Pane 0)
 tmux select-pane -t "$SESSION:0.0"
 tmux send-keys -t "$SESSION:0.0" \
-    "export DISPLAY=''; export WAYLAND_DISPLAY=''; export EDITOR=$WRAPPER; clear; ranger" C-m
+    "export DISPLAY=''; export WAYLAND_DISPLAY=''; export EDITOR=$WRAPPER; clear; ranger --cmd='set preview_files false'" C-m
 
 # 2. Nano welcome pane (Pane 2)
 tmux select-pane -t "$SESSION:0.2"
