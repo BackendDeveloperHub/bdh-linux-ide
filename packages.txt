@@ -8,3 +8,4 @@ eza
 git
 cage
 postgresql
+qrencode
