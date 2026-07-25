@@ -85,7 +85,7 @@ chmod +x "$INSTALL_DIR/bdh-db"
 # =========================================================
 
 # =========================================================
-# 5. bdh-record கமாண்டை இன்ஸ்டால் செய்தல் (புதிதாக சேர்க்கப்பட்டது)
+# 5. bdh-record கமாண்டை இன்ஸ்டால் செய்தல் 
 # =========================================================
 echo "Installing bdh-record shortcut..."
 sed -i 's/\r$//' bdh-record 2>/dev/null
@@ -105,8 +105,29 @@ cp configs/ide_layout.tz "$CONFIG_DIR/ide_layout.tz"
 
 # Config ஃபைல்களுக்கு அனைவருக்கும் படிக்கும் (Read) உரிமை கொடுக்க
 chmod -R 755 "$CONFIG_DIR"
+# =========================================================
 
-# 7. பழைய Tmux செஷனை அழித்தல் (புதிய அப்டேட்கள் உடனடியாக வேலை செய்ய)
+# =========================================================
+# 7. Ranger-ல் தமிழி (.tz) ஃபைலை Nano-வில் திறக்க ஆட்டோ-செட்டப்
+# =========================================================
+echo "Configuring Ranger for Tamizhi (.tz) files..."
+
+if [ -n "$SUDO_USER" ]; then
+    USER_HOME=$(eval echo ~$SUDO_USER)
+    
+    # Ranger config ஃபோல்டரை யூசர் பெயரில் உருவாக்குதல்
+    sudo -u $SUDO_USER mkdir -p "$USER_HOME/.config/ranger"
+    
+    # ஃபைலில் ஏற்கனவே இந்த ரூல் இருக்கிறதா என செக் செய்து, இல்லை என்றால் மட்டும் சேர்க்க
+    if ! grep -q "ext tz" "$USER_HOME/.config/ranger/rifle.conf" 2>/dev/null; then
+        echo 'ext tz = nano "$@"' | sudo -u $SUDO_USER tee -a "$USER_HOME/.config/ranger/rifle.conf" > /dev/null
+    fi
+fi
+# =========================================================
+
+# =========================================================
+# 8. பழைய Tmux செஷனை அழித்தல் (புதிய அப்டேட்கள் உடனடியாக வேலை செய்ய)
+# =========================================================
 echo "Resetting old sessions..."
 if [ -n "$SUDO_USER" ]; then
     sudo -u $SUDO_USER tmux kill-server 2>/dev/null
