@@ -24,12 +24,23 @@ echo "✅ GIF is ready! Starting local server to send to your phone..."
 
 # 3. Find Laptop's Local IP address
 LOCAL_IP=$(ip -4 addr show | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | grep -v '127.0.0.1' | head -n 1)
+LINK="http://${LOCAL_IP}:8000"
 
 echo "---------------------------------------------------"
-echo "📱 Type the following link in your phone's browser:"
-echo "👉 http://${LOCAL_IP}:8000"
+echo "📱 Scan this QR code with your phone's camera:"
+echo "---------------------------------------------------"
+
+# 4. Generate and display QR code in terminal
+if command -v qrencode &> /dev/null; then
+    qrencode -t ANSIUTF8 "${LINK}"
+else
+    echo "⚠️  'qrencode' not found. Install it with: sudo pacman -S qrencode"
+fi
+
+echo "---------------------------------------------------"
+echo "👉 Or type this link manually: ${LINK}"
 echo "---------------------------------------------------"
 echo "(Once downloaded, press Ctrl + C to stop the server)"
 
-# 4. Start Python HTTP Server
+# 5. Start Python HTTP Server
 python -m http.server 8000
