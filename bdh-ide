@@ -16,7 +16,7 @@ WRAPPER="/tmp/bdh-nano-wrapper.sh"
 # Unset TMUX to avoid nesting errors if already inside a tmux session
 unset TMUX
 
-# --- Generate wrapper script (created fresh on every run) ---
+# --- Generate wrapper script (Using Directions instead of Numbers) ---
 cat <<EOF > "$WRAPPER"
 #!/bin/bash
 [ "\$1" == "--" ] && shift
@@ -24,18 +24,18 @@ cat <<EOF > "$WRAPPER"
 FILE_PATH="\$1"
 DIR_PATH=\$(dirname "\$FILE_PATH")
 
-# 1. Open file in Nano pane (Pane 2 - Right side)
-tmux send-keys -t 2 C-c
+# 1. Open file in Nano pane (Right side)
+tmux send-keys -t "$SESSION:0.right" C-c
 sleep 0.1
-tmux send-keys -t 2 "nano \"\$FILE_PATH\"" C-m
+tmux send-keys -t "$SESSION:0.right" "nano \"\$FILE_PATH\"" C-m
 
-# 2. Change directory in Terminal pane (Pane 1 - Bottom left)
-tmux send-keys -t 1 C-c
+# 2. Change directory in Terminal pane (Bottom left)
+tmux send-keys -t "$SESSION:0.bottom-left" C-c
 sleep 0.1
-tmux send-keys -t 1 "cd \"\$DIR_PATH\" && clear && ls" C-m
+tmux send-keys -t "$SESSION:0.bottom-left" "cd \"\$DIR_PATH\" && clear && ls" C-m
 
 # 3. Switch cursor focus to Nano pane
-tmux select-pane -t 2
+tmux select-pane -t "$SESSION:0.right"
 EOF
 chmod +x "$WRAPPER"
 
@@ -50,26 +50,25 @@ tmux -f "$CONFIG_DIR/tmux.conf" new-session -d -s "$SESSION" -n "BDH-IDE"
 # 1. Split screen left/right (Right side Nano 70%)
 tmux split-window -h -p "$NANO_WIDTH" -t "$SESSION"
 
-# 2. Split left pane (Pane 0) top/bottom (Bottom Terminal 40%)
-tmux select-pane -t "$SESSION:0.0"
-tmux split-window -v -p "$TERMINAL_HEIGHT" -t "$SESSION:0.0"
+# 2. Split left pane top/bottom (Bottom Terminal 40%)
+tmux select-pane -t "$SESSION:0.left"
+tmux split-window -v -p "$TERMINAL_HEIGHT" -t "$SESSION:0.left"
 
-# Current Pane Layout:
-# 0 = Ranger (Top Left)
-# 1 = Terminal (Bottom Left)
-# 2 = Nano (Entire Right Side)
+# =========================================================
+# 🚀 INITIALIZE PANES (Using precise directions)
+# =========================================================
 
-# 1. Ranger pane (Pane 0)
-tmux select-pane -t "$SESSION:0.0"
-tmux send-keys -t "$SESSION:0.0" \
+# 1. Ranger pane (Top Left)
+tmux select-pane -t "$SESSION:0.top-left"
+tmux send-keys -t "$SESSION:0.top-left" \
     "export DISPLAY=''; export WAYLAND_DISPLAY=''; export EDITOR=$WRAPPER; clear; ranger --cmd='set preview_files false'" C-m
 
-# 2. Nano welcome pane (Pane 2)
-tmux select-pane -t "$SESSION:0.2"
-tmux send-keys -t "$SESSION:0.2" \
+# 2. Nano welcome pane (Right Side)
+tmux select-pane -t "$SESSION:0.right"
+tmux send-keys -t "$SESSION:0.right" \
     "clear; echo -e '\n  \e[1;32mWelcome to BDH IDE!\e[0m\n  Press \e[1;33mEnter\e[0m on a file in Ranger to open it here.\n  The Terminal on the left will \e[1;36mauto-sync the directory path!\e[0m\n'" C-m
 
-# 3. Main terminal pane (Pane 1) - Leave cursor here
-tmux select-pane -t "$SESSION:0.1"
+# 3. Main terminal pane (Bottom Left) - Leave cursor here
+tmux select-pane -t "$SESSION:0.bottom-left"
 
 tmux attach -t "$SESSION"
