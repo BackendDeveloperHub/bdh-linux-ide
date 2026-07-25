@@ -37,8 +37,6 @@ PANE_TERM=$(tmux split-window -v -p "$TERMINAL_HEIGHT" -t "$PANE_RANGER" -P -F "
 # =========================================================
 # 📜 DYNAMIC WRAPPER SCRIPT (Using Exact Pane IDs)
 # =========================================================
-# இப்போது எந்த Pane எங்கே இருக்கிறது என்று கச்சிதமாகத் தெரியும்!
-
 cat <<EOF > "$WRAPPER"
 #!/bin/bash
 [ "\$1" == "--" ] && shift
@@ -65,9 +63,9 @@ chmod +x "$WRAPPER"
 # 🎬 START THE PROGRAMS IN THEIR EXACT PANES
 # =========================================================
 
-# 1. Start Ranger (Top Left)
+# 1. Start Ranger (Top Left) - Powered by your custom Enter map!
 tmux send-keys -t "$PANE_RANGER" \
-    "export DISPLAY=''; export WAYLAND_DISPLAY=''; export EDITOR=$WRAPPER; clear; ranger --cmd='set preview_files false'" C-m
+    "export DISPLAY=''; export WAYLAND_DISPLAY=''; export EDITOR=$WRAPPER; clear; ranger --cmd='set preview_files false' --cmd='map <Enter> shell \$EDITOR -- %f'" C-m
 
 # 2. Nano Welcome Screen (Right)
 tmux send-keys -t "$PANE_NANO" \
