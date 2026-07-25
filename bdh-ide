@@ -3,6 +3,7 @@
 
 SESSION="archide"
 CONFIG_DIR="/etc/bdh-ide"
+WRAPPER="/tmp/bdh-nano-wrapper.sh"
 
 # =========================================================
 # ⚙️ CUSTOM WINDOW SIZES
@@ -11,12 +12,33 @@ NANO_WIDTH=70        # Nano takes 70% space on the right
 TERMINAL_HEIGHT=40   # Terminal takes 40% space on the bottom left
 # =========================================================
 
-WRAPPER="/tmp/bdh-nano-wrapper.sh"
-
-# Unset TMUX to avoid nesting errors if already inside a tmux session
+# Unset TMUX to avoid nesting errors
 unset TMUX
 
-# --- Generate wrapper script (Using Directions instead of Numbers) ---
+# --- Kill existing session if it's already running ---
+if tmux has-session -t "$SESSION" 2>/dev/null; then
+    tmux kill-session -t "$SESSION"
+fi
+
+# =========================================================
+# 🚀 CREATE PANES AND CAPTURE THEIR UNIQUE IDs
+# =========================================================
+
+# 1. Create Session (This becomes Ranger pane)
+tmux -f "$CONFIG_DIR/tmux.conf" new-session -d -s "$SESSION" -n "BDH-IDE"
+PANE_RANGER=$(tmux display-message -p -t "$SESSION" '#{pane_id}')
+
+# 2. Split right for Nano and capture its ID
+PANE_NANO=$(tmux split-window -h -p "$NANO_WIDTH" -t "$PANE_RANGER" -P -F "#{pane_id}")
+
+# 3. Split bottom-left for Terminal and capture its ID
+PANE_TERM=$(tmux split-window -v -p "$TERMINAL_HEIGHT" -t "$PANE_RANGER" -P -F "#{pane_id}")
+
+# =========================================================
+# 📜 DYNAMIC WRAPPER SCRIPT (Using Exact Pane IDs)
+# =========================================================
+# இப்போது எந்த Pane எங்கே இருக்கிறது என்று கச்சிதமாகத் தெரியும்!
+
 cat <<EOF > "$WRAPPER"
 #!/bin/bash
 [ "\$1" == "--" ] && shift
@@ -24,51 +46,34 @@ cat <<EOF > "$WRAPPER"
 FILE_PATH="\$1"
 DIR_PATH=\$(dirname "\$FILE_PATH")
 
-# 1. Open file in Nano pane (Right side)
-tmux send-keys -t "$SESSION:0.right" C-c
+# 1. Open file in Nano (Right Side)
+tmux send-keys -t "$PANE_NANO" C-c
 sleep 0.1
-tmux send-keys -t "$SESSION:0.right" "nano \"\$FILE_PATH\"" C-m
+tmux send-keys -t "$PANE_NANO" "nano \"\$FILE_PATH\"" C-m
 
-# 2. Change directory in Terminal pane (Bottom left)
-tmux send-keys -t "$SESSION:0.bottom-left" C-c
+# 2. Change directory in Terminal (Bottom Left)
+tmux send-keys -t "$PANE_TERM" C-c
 sleep 0.1
-tmux send-keys -t "$SESSION:0.bottom-left" "cd \"\$DIR_PATH\" && clear && ls" C-m
+tmux send-keys -t "$PANE_TERM" "cd \"\$DIR_PATH\" && clear && ls" C-m
 
-# 3. Switch cursor focus to Nano pane
-tmux select-pane -t "$SESSION:0.right"
+# 3. Focus back to Nano
+tmux select-pane -t "$PANE_NANO"
 EOF
 chmod +x "$WRAPPER"
 
-# --- Kill existing session if it's already running ---
-if tmux has-session -t "$SESSION" 2>/dev/null; then
-    tmux kill-session -t "$SESSION"
-fi
-
-# --- Create new session + 3-pane layout ---
-tmux -f "$CONFIG_DIR/tmux.conf" new-session -d -s "$SESSION" -n "BDH-IDE"
-
-# 1. Split screen left/right (Right side Nano 70%)
-tmux split-window -h -p "$NANO_WIDTH" -t "$SESSION"
-
-# 2. Split left pane top/bottom (Bottom Terminal 40%)
-tmux select-pane -t "$SESSION:0.left"
-tmux split-window -v -p "$TERMINAL_HEIGHT" -t "$SESSION:0.left"
-
 # =========================================================
-# 🚀 INITIALIZE PANES (Using precise directions)
+# 🎬 START THE PROGRAMS IN THEIR EXACT PANES
 # =========================================================
 
-# 1. Ranger pane (Top Left)
-tmux select-pane -t "$SESSION:0.top-left"
-tmux send-keys -t "$SESSION:0.top-left" \
+# 1. Start Ranger (Top Left)
+tmux send-keys -t "$PANE_RANGER" \
     "export DISPLAY=''; export WAYLAND_DISPLAY=''; export EDITOR=$WRAPPER; clear; ranger --cmd='set preview_files false'" C-m
 
-# 2. Nano welcome pane (Right Side)
-tmux select-pane -t "$SESSION:0.right"
-tmux send-keys -t "$SESSION:0.right" \
+# 2. Nano Welcome Screen (Right)
+tmux send-keys -t "$PANE_NANO" \
     "clear; echo -e '\n  \e[1;32mWelcome to BDH IDE!\e[0m\n  Press \e[1;33mEnter\e[0m on a file in Ranger to open it here.\n  The Terminal on the left will \e[1;36mauto-sync the directory path!\e[0m\n'" C-m
 
-# 3. Main terminal pane (Bottom Left) - Leave cursor here
-tmux select-pane -t "$SESSION:0.bottom-left"
+# 3. Focus Terminal (Bottom Left)
+tmux select-pane -t "$PANE_TERM"
 
 tmux attach -t "$SESSION"
