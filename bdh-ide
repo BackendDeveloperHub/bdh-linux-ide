@@ -35,27 +35,31 @@ PANE_NANO=$(tmux split-window -h -p "$NANO_WIDTH" -t "$PANE_RANGER" -P -F "#{pan
 PANE_TERM=$(tmux split-window -v -p "$TERMINAL_HEIGHT" -t "$PANE_RANGER" -P -F "#{pane_id}")
 
 # =========================================================
-# 📜 DYNAMIC WRAPPER SCRIPT (Using Bulletproof Respawn Logic)
+# 📜 DYNAMIC WRAPPER SCRIPT (Path Bug Fixed!)
 # =========================================================
 cat <<EOF > "$WRAPPER"
 #!/bin/bash
 [ "\$1" == "--" ] && shift
 
-FILE_PATH="\$1"
-DIR_PATH=\$(dirname "\$FILE_PATH")
-FILE_NAME=\$(basename "\$FILE_PATH")
+# Ranger-ல் இருந்து வரும் ஃபைல் பெயரையும், தற்போதுள்ள ஃபோல்டரையும் பிரிக்கிறோம்
+FILE_NAME=\$(basename "\$1")
+DIR_PATH="\$PWD"  # இதுதான் மேஜிக்! Ranger தற்போதுள்ள அசல் ஃபோல்டர் Path-ஐ எடுக்கிறது.
 
 # 1. Force-kill whatever is running in Nano pane, fresh shell start
 tmux respawn-pane -k -t "$PANE_NANO"
-sleep 0.1
+
+# Bash shell முழுமையாக Load ஆக ஒரு சிறிய இடைவெளி கொடுக்கிறோம் (Timing fix)
+sleep 0.3
+
+# 2. அசல் ஃபோல்டருக்குச் சென்று ஃபைலைத் திறக்கிறோம்
 tmux send-keys -t "$PANE_NANO" "cd \"\$DIR_PATH\" && clear && nano \"\$FILE_NAME\"" C-m
 
-# 2. Terminal Pane path sync
+# 3. Terminal Pane path sync
 tmux send-keys -t "$PANE_TERM" C-c
 sleep 0.1
 tmux send-keys -t "$PANE_TERM" "cd \"\$DIR_PATH\" && clear && ls" C-m
 
-# 3. Focus Nano
+# 4. Focus Nano
 tmux select-pane -t "$PANE_NANO"
 EOF
 chmod +x "$WRAPPER"
@@ -64,7 +68,7 @@ chmod +x "$WRAPPER"
 # 🎬 START THE PROGRAMS IN THEIR EXACT PANES
 # =========================================================
 
-# 1. Start Ranger (Top Left) - Powered by your custom Enter map!
+# 1. Start Ranger (Top Left)
 tmux send-keys -t "$PANE_RANGER" \
     "export DISPLAY=''; export WAYLAND_DISPLAY=''; export EDITOR=$WRAPPER; clear; ranger --cmd='set preview_files false' --cmd='map <Enter> shell \$EDITOR -- %f'" C-m
 
