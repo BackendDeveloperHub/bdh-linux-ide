@@ -1,7 +1,7 @@
 # Maintainer: Prabakaran (bdh) 
 
 pkgname=bdh-linux-ide
-pkgver=1.0.1
+pkgver=1.0.3
 pkgrel=1
 pkgdesc="A simple, lightweight terminal-based IDE using Tmux, Ranger, and Nano."
 arch=('any')
