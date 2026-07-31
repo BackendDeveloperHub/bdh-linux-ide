@@ -1,12 +1,12 @@
 #!/bin/bash
-# BDH IDE — Final merged launcher (ranger + nano + terminal, tmux based)
+# BDH IDE — Full Multi-Window Launcher (IDE, Server, Browser, Files, Monitor)
 
-SESSION="archide"
+SESSION="bdh-ide"
 CONFIG_DIR="/etc/bdh-ide"
 WRAPPER="/tmp/bdh-nano-wrapper.sh"
 
 # =========================================================
-# ⚙️ CUSTOM WINDOW SIZES
+# ⚙️ CUSTOM IDE WINDOW SIZES
 # =========================================================
 NANO_WIDTH=70        # Nano takes 70% space on the right
 TERMINAL_HEIGHT=40   # Terminal takes 40% space on the bottom left
@@ -15,68 +15,82 @@ TERMINAL_HEIGHT=40   # Terminal takes 40% space on the bottom left
 # Unset TMUX to avoid nesting errors
 unset TMUX
 
-# --- Kill existing session if it's already running ---
+# --- Kill existing session if running ---
 if tmux has-session -t "$SESSION" 2>/dev/null; then
     tmux kill-session -t "$SESSION"
 fi
 
 # =========================================================
-# 🚀 CREATE PANES AND CAPTURE THEIR UNIQUE IDs
+# 🚀 WINDOW 0: THE IDE (Ranger + Nano + Terminal)
 # =========================================================
 
-# 1. Create Session (This becomes Ranger pane)
-tmux -f "$CONFIG_DIR/tmux.conf" new-session -d -s "$SESSION" -n "BDH-IDE"
+# 1. Start Session with "IDE" window
+tmux -f "$CONFIG_DIR/tmux.conf" new-session -d -s "$SESSION" -n "IDE"
 PANE_RANGER=$(tmux display-message -p -t "$SESSION" '#{pane_id}')
 
-# 2. Split right for Nano and capture its ID
+# 2. Split right for Nano (70%)
 PANE_NANO=$(tmux split-window -h -p "$NANO_WIDTH" -t "$PANE_RANGER" -P -F "#{pane_id}")
 
-# 3. Split bottom-left for Terminal and capture its ID
+# 3. Split bottom-left for Terminal (40%)
 PANE_TERM=$(tmux split-window -v -p "$TERMINAL_HEIGHT" -t "$PANE_RANGER" -P -F "#{pane_id}")
 
 # =========================================================
-# 📜 DYNAMIC WRAPPER SCRIPT (Path Bug Fixed!)
+# 📜 DYNAMIC WRAPPER SCRIPT (Clean Pane State Fix)
 # =========================================================
 cat <<EOF > "$WRAPPER"
 #!/bin/bash
 [ "\$1" == "--" ] && shift
 
-# Ranger-ல் இருந்து வரும் ஃபைல் பெயரையும், தற்போதுள்ள ஃபோல்டரையும் பிரிக்கிறோம்
 FILE_NAME=\$(basename "\$1")
-DIR_PATH="\$PWD"  # இதுதான் மேஜிக்! Ranger தற்போதுள்ள அசல் ஃபோல்டர் Path-ஐ எடுக்கிறது.
+DIR_PATH="\$PWD"
 
-# 1. Force-kill whatever is running in Nano pane, fresh shell start
+# 1. Kill old state in Nano pane & start fresh Nano
 tmux respawn-pane -k -t "$PANE_NANO"
-
-# Bash shell முழுமையாக Load ஆக ஒரு சிறிய இடைவெளி கொடுக்கிறோம் (Timing fix)
 sleep 0.3
-
-# 2. அசல் ஃபோல்டருக்குச் சென்று ஃபைலைத் திறக்கிறோம்
 tmux send-keys -t "$PANE_NANO" "cd \"\$DIR_PATH\" && clear && nano \"\$FILE_NAME\"" C-m
 
-# 3. Terminal Pane path sync
+# 2. Terminal Pane path sync
 tmux send-keys -t "$PANE_TERM" C-c
 sleep 0.1
 tmux send-keys -t "$PANE_TERM" "cd \"\$DIR_PATH\" && clear && ls" C-m
 
-# 4. Focus Nano
+# 3. Focus Nano
 tmux select-pane -t "$PANE_NANO"
 EOF
 chmod +x "$WRAPPER"
 
-# =========================================================
-# 🎬 START THE PROGRAMS IN THEIR EXACT PANES
-# =========================================================
-
-# 1. Start Ranger (Top Left)
+# --- Launch Apps in WINDOW 0 ---
 tmux send-keys -t "$PANE_RANGER" \
     "export DISPLAY=''; export WAYLAND_DISPLAY=''; export EDITOR=$WRAPPER; clear; ranger --cmd='set preview_files false' --cmd='map <Enter> shell \$EDITOR -- %f'" C-m
 
-# 2. Nano Welcome Screen (Right)
 tmux send-keys -t "$PANE_NANO" \
-    "clear; echo -e '\n  \e[1;32mWelcome to BDH IDE!\e[0m\n  Press \e[1;33mEnter\e[0m on a file in Ranger to open it here.\n  The Terminal on the left will \e[1;36mauto-sync the directory path!\e[0m\n'" C-m
+    "clear; echo -e '\n  \e[1;32mWelcome to BDH IDE!\e[0m\n  Press \e[1;33mEnter\e[0m in Ranger to edit a file.\n'" C-m
 
-# 3. Focus Terminal (Bottom Left)
+# =========================================================
+# 🌐 WINDOW 1 to 4: EXTRA DEV TOOLS
+# =========================================================
+
+# --- WINDOW 1: SERVER (Tamizhi / Uvicorn) ---
+tmux new-window -t "$SESSION:1" -n "Server"
+tmux send-keys -t "$SESSION:1" 'clear && echo -e "\e[1;36mReady to run Tamizhi compiler or Uvicorn server...\e[0m"' C-m
+
+# --- WINDOW 2: BROWSER (Documentation) ---
+tmux new-window -t "$SESSION:2" -n "Browser"
+tmux send-keys -t "$SESSION:2" 'clear && echo -e "\e[1;33mRun: w3m <url> to browse documentation\e[0m"' C-m
+
+# --- WINDOW 3: FILES (Pendrive / Extra) ---
+tmux new-window -t "$SESSION:3" -n "Files"
+tmux send-keys -t "$SESSION:3" 'clear' C-m
+
+# --- WINDOW 4: SYSTEM MONITOR ---
+tmux new-window -t "$SESSION:4" -n "Monitor"
+tmux send-keys -t "$SESSION:4" 'htop' C-m
+
+# =========================================================
+# 🏁 ATTACH SESSION
+# =========================================================
+# Select IDE window and focus terminal pane
+tmux select-window -t "$SESSION:0"
 tmux select-pane -t "$PANE_TERM"
 
-tmux attach -t "$SESSION"
+tmux attach-session -t "$SESSION"
