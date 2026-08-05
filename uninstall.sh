@@ -2,32 +2,34 @@
 
 if [ "$EUID" -ne 0 ]; then
   echo "தயவுசெய்து இதை 'sudo ./uninstall.sh' என ரன் செய்யவும்."
-  exit
+  exit 1
 fi
 
-echo "BDH Linux IDE (Global) அன்-இன்ஸ்டால் செய்யப்படுகிறது..."
+echo "BDH Linux Sovereign IDE & Engine அன்-இன்ஸ்டால் செய்யப்படுகிறது..."
 
 INSTALL_DIR="/usr/local/bin"
 CONFIG_DIR="/etc/bdh-ide"
 
-# 1. Main Executable-ஐ நீக்குதல்
-if [ -f "$INSTALL_DIR/bdh-ide" ]; then
-    rm "$INSTALL_DIR/bdh-ide"
-    echo "✅ Executable (bdh-ide) நீக்கப்பட்டது."
-fi
+# 1. Main Executables & Engine-ஐ நீக்குதல்
+BINARIES=("bdh-ide" "bdh-ide-kill" "bdh-terminal-engine" "bdh-browser" "bdh-db" "bdh-record")
 
-# 2. Kill Command-ஐ நீக்குதல் (புதிதாக சேர்க்கப்பட்டது)
-if [ -f "$INSTALL_DIR/bdh-ide-kill" ]; then
-    rm "$INSTALL_DIR/bdh-ide-kill"
-    echo "✅ Kill Command (bdh-ide-kill) நீக்கப்பட்டது."
-fi
+for cmd in "${BINARIES[@]}"; do
+    if [ -f "$INSTALL_DIR/$cmd" ]; then
+        rm "$INSTALL_DIR/$cmd"
+        echo "✅ $cmd நீக்கப்பட்டது."
+    fi
+done
 
-# 3. Configuration போல்டரை நீக்குதல்
+# 2. Configuration போல்டரை நீக்குதல்
 if [ -d "$CONFIG_DIR" ]; then
     rm -rf "$CONFIG_DIR"
-    echo "✅ Configuration files நீக்கப்பட்டன."
+    echo "✅ Configuration files ($CONFIG_DIR) நீக்கப்பட்டன."
 fi
 
+# 3. பின்னணியில் ஓடும் BDH இன்ஜின் ப்ராசஸை முழுமையாக நிறுத்துதல்
+pkill -f bdh-terminal-engine 2>/dev/null
+echo "✅ ஓடிக்கொண்டிருந்த BDH Engine ப்ராசஸ்கள் நிறுத்தப்பட்டன."
+
 echo "---------------------------------------------------"
-echo "BDH Linux IDE வெற்றிகரமாக சிஸ்டமிலிருந்து நீக்கப்பட்டது!"
+echo "BDH Linux Ecosystem வெற்றிகரமாக சிஸ்டமிலிருந்து நீக்கப்பட்டது!"
 echo "---------------------------------------------------"
