@@ -1,35 +1,40 @@
 #!/bin/bash
-# BDH IDE — Zero-Tmux Sovereign Launcher
-# Powered exclusively by bdh-terminal-engine (Pure POSIX C)
+# =========================================================
+# 🚀 BDH LINUX ECOSYSTEM — OFFICIAL INSTALLER
+# =========================================================
 
-# =========================================================
-# 1. 🌍 ENVIRONMENT & WORKSPACE SETUP
-# =========================================================
+echo -e "\e[1;36m+===================================================+\e[0m"
+echo -e "\e[1;32m     🔥 INSTALLING BDH SOVEREIGN DEV STACK 🔥      \e[0m"
+echo -e "\e[1;36m+===================================================+\e[0m"
+
+# 1. Base Developer Tools & Wayland Kiosk (NO TMUX!)
+echo -e "\n\e[1;33m[1/3] Installing Base Tools (cage, zsh, ranger, nano, etc.)...\e[0m"
+sudo pacman -S --needed --noconfirm base-devel git cage zsh fzf bat eza ranger nano postgresql qrencode
+
+# 2. Clone & Build BDH Terminal Engine (Pure POSIX C)
+echo -e "\n\e[1;33m[2/3] Cloning & Building bdh-terminal-engine...\e[0m"
+cd /tmp || exit
+rm -rf bdh-terminal-engine
+git clone https://github.com/BackendDeveloperHub/bdh-terminal-engine.git
+cd bdh-terminal-engine || exit
+
+make clean && make
+sudo install -m 755 bdh-engine /usr/local/bin/bdh-terminal-engine
+
+# 3. Create Sovereign IDE Launcher (bdh-ide)
+echo -e "\n\e[1;33m[3/3] Configuring Sovereign IDE Launcher...\e[0m"
+cat << 'EOF' | sudo tee /usr/local/bin/bdh-ide > /dev/null
+#!/bin/bash
 export BDH_IDE_ACTIVE=1
 export EDITOR="nano"
 export BROWSER="bdh-browser"
-export PATH="/usr/local/bin:$PATH"
 
-# ப்ராஜெக்ட் டைரக்டரியை செட் செய்கிறோம் (தற்போதுள்ள ஃபோல்டர்)
-PROJECT_DIR="$PWD"
-
-# =========================================================
-# 2. 🖥️ STARTUP WELCOME BANNER
-# =========================================================
 clear
-echo -e "\e[1;36m+===================================================+\e[0m"
-echo -e "\e[1;32m       🚀 BDH LINUX IDE — SOVEREIGN EDITION        \e[0m"
-echo -e "\e[1;36m+===================================================+\e[0m"
-echo -e "  Engine    : \e[1;33mbdh-terminal-engine (Zero-Tmux / Pure C)\e[0m"
-echo -e "  Workspace : \e[1;35m$PROJECT_DIR\e[0m"
-echo -e "  Tabs      : \e[1;36m[1:CODE] [2:FILES] [3:SERVER] [4:BROWSER]\e[0m"
-echo -e "\e[1;36m+===================================================+\e[0m"
-echo -e "\e[0;37m  Starting Native Terminal Engine in 0.5s...\e[0m"
-sleep 0.5
+echo -e "\e[1;32m  🚀 Starting BDH Terminal Engine...\e[0m"
+sleep 0.3
+exec bdh-terminal-engine "$@"
+EOF
+sudo chmod +x /usr/local/bin/bdh-ide
 
-# =========================================================
-# 3. 🔥 LAUNCH SOVEREIGN C MULTIPLEXER
-# =========================================================
-# tmux-க்கு பதிலாக நமது சொந்த C இன்ஜினை மெயின் ப்ராசஸாக (exec) ஓட்டுகிறோம்.
-# (டீஃபால்ட் டேப்களான nano, ranger, server அனைத்தும் இன்ஜினுக்குள்ளேயே தொடங்கும்)
-cd "$PROJECT_DIR" && exec bdh-terminal-engine "$@"
+echo -e "\n\e[1;32m✅ BDH Linux Ecosystem Setup Completed Successfully!\e[0m"
+echo -e "\e[1;36m   Run 'cage -s -- bdh-ide' to launch Kiosk Mode!\e[0m"
