@@ -1,8 +1,9 @@
 #!/bin/bash
+# =========================================================
+# 🚀 BDH LINUX IDE — SMART AUTOMATED INSTALLER
+# =========================================================
 
-# =========================================================
 # 0. Environment Detection (Arch Linux vs Termux)
-# =========================================================
 if [ -n "$TERMUX_VERSION" ] || [ -d "/data/data/com.termux" ]; then
     IS_TERMUX=true
     echo "📱 Termux Environment Detected..."
@@ -11,77 +12,87 @@ else
     echo "💻 Arch Linux / Standard Linux Environment Detected..."
 fi
 
-# Arch Linux-ல் மட்டும் Root (sudo) பர்மிஷன் உள்ளதா என சரிபார்க்க...
+# Root Permission Check for Standard Linux
 if [ "$IS_TERMUX" = false ] && [ "$EUID" -ne 0 ]; then
     echo "Warning: Global installation requires Root privilege!"
     echo "Please run this as 'sudo ./install.sh'."
     exit 1
 fi
 
-echo "Installing BDH Linux Sovereign IDE..."
+echo -e "\e[1;32mInstalling BDH Linux Sovereign IDE...\e[0m"
 
-# =========================================================
 # 1. Dynamic Variables Configuration
-# =========================================================
 if [ "$IS_TERMUX" = true ]; then
-    # Termux Paths & User
     INSTALL_DIR="$PREFIX/bin"
     CONFIG_DIR="$PREFIX/etc/bdh-ide"
     PG_DATA="$PREFIX/var/lib/postgresql"
+    TMP_DIR="${TMPDIR:-$PREFIX/tmp}"
     TARGET_USER=$(whoami)
     TARGET_HOME="$HOME"
 else
-    # Arch Linux Paths & User
     INSTALL_DIR="/usr/local/bin"
     CONFIG_DIR="/etc/bdh-ide"
     PG_DATA="/var/lib/postgres/data"
+    TMP_DIR="/tmp"
     TARGET_USER="$SUDO_USER"
     TARGET_HOME=$(eval echo ~$SUDO_USER)
 fi
 
-# Directories உருவாக்குதல்
 mkdir -p "$INSTALL_DIR"
 mkdir -p "$CONFIG_DIR"
+mkdir -p "$TMP_DIR"
 
-# =========================================================
-# 2. Package Dependencies இன்ஸ்டால் செய்தல் (No tmux!)
-# =========================================================
+# 2. Package Dependencies (No tmux!)
 if [ -f "packages.txt" ]; then
     echo "Installing required packages..."
     if [ "$IS_TERMUX" = true ]; then
         pkg update -y
-        pkg install -y $(cat packages.txt | tr '\n' ' ')
+        pkg install -y $(cat packages.txt | tr '\n' ' ') make clang git
     else
-        pacman -S --needed --noconfirm $(cat packages.txt | tr '\n' ' ')
+        pacman -S --needed --noconfirm $(cat packages.txt | tr '\n' ' ') base-devel git
     fi
-else
-    echo "Warning: packages.txt not found!"
 fi
 
 # =========================================================
-# 3. Main Executables & Browser Shortcut
+# 3. 🔥 SMART AUTO-DETECT & BUILD BDH-TERMINAL-ENGINE
 # =========================================================
-echo "Setting up main executables..."
+echo "Checking BDH Terminal Engine..."
 
-# 3.1 BDH Terminal Engine (Pure C Engine Binary)
-sed -i 's/\r$//' bdh-terminal-engine 2>/dev/null
-cp bdh-terminal-engine "$INSTALL_DIR/bdh-terminal-engine" 2>/dev/null || echo "bdh-terminal-engine skipped (ensure binary exists)"
-[ -f "$INSTALL_DIR/bdh-terminal-engine" ] && chmod +x "$INSTALL_DIR/bdh-terminal-engine"
+if ! command -v bdh-terminal-engine &> /dev/null && [ ! -f "$INSTALL_DIR/bdh-terminal-engine" ]; then
+    echo -e "\e[1;33m⚡ bdh-terminal-engine not found! Auto-cloning & building...\e[0m"
+    CURRENT_DIR="$PWD"
+    cd "$TMP_DIR" || exit 1
+    rm -rf bdh-terminal-engine
+    git clone https://github.com/BackendDeveloperHub/bdh-terminal-engine.git
+    cd bdh-terminal-engine || { echo "Git Clone Failed!"; exit 1; }
+    
+    make clean && make || { echo "Engine Build Failed!"; exit 1; }
+    cp -f bdh-engine "$INSTALL_DIR/bdh-terminal-engine"
+    chmod 755 "$INSTALL_DIR/bdh-terminal-engine"
+    cd "$CURRENT_DIR" || exit 1
+    echo -e "\e[1;32m✅ BDH Terminal Engine installed globally!\e[0m"
+else
+    echo -e "\e[1;32m✅ BDH Terminal Engine is already installed. Using existing engine!\e[0m"
+fi
 
-# 3.2 BDH IDE Launcher
-sed -i 's/\r$//' bdh-ide 2>/dev/null
-cp bdh-ide "$INSTALL_DIR/bdh-ide"
+# =========================================================
+# 4. 🔥 DYNAMIC GENERATION OF BDH-IDE LAUNCHER (ZERO BUG)
+# =========================================================
+echo "Creating clean Sovereign IDE Launcher..."
+cat << 'EOF' > "$INSTALL_DIR/bdh-ide"
+#!/bin/bash
+export BDH_IDE_ACTIVE=1
+export EDITOR="nano"
+export BROWSER="bdh-browser"
+
+clear
+echo -e "\e[1;32m  🚀 Starting BDH Sovereign Terminal Engine...\e[0m"
+sleep 0.3
+exec bdh-terminal-engine "$@"
+EOF
 chmod +x "$INSTALL_DIR/bdh-ide"
 
-# 3.3 BDH Browser
-sed -i 's/\r$//' bdh-browser 2>/dev/null
-cp bdh-browser "$INSTALL_DIR/bdh-browser" 2>/dev/null || echo "bdh-browser skipped (not found)"
-[ -f "$INSTALL_DIR/bdh-browser" ] && chmod +x "$INSTALL_DIR/bdh-browser"
-
-# =========================================================
-# 4. bdh-ide-kill கமாண்டை உருவாக்குதல் (Zero-Tmux Engine Kill)
-# =========================================================
-echo "Creating kill command..."
+# 5. Create bdh-ide-kill Command
 cat << 'EOF' > "$INSTALL_DIR/bdh-ide-kill"
 #!/bin/bash
 pkill -f bdh-terminal-engine 2>/dev/null
@@ -89,85 +100,47 @@ echo -e "\e[1;32mBDH Sovereign IDE sessions stopped successfully!\e[0m"
 EOF
 chmod +x "$INSTALL_DIR/bdh-ide-kill"
 
-# =========================================================
-# 5. PostgreSQL Setup & bdh-db கமாண்டு
-# =========================================================
-echo "Setting up PostgreSQL Database..."
-
-if [ "$IS_TERMUX" = true ]; then
-    # Termux-க்கான PostgreSQL Setup
-    mkdir -p "$PG_DATA"
-    if [ -z "$(ls -A "$PG_DATA" 2>/dev/null)" ]; then
-        initdb "$PG_DATA"
-        echo "PostgreSQL initialized for Termux."
-    else
-        echo "PostgreSQL is already initialized."
+# 6. Extra Shortcuts (Browser, DB, Record)
+for cmd in "bdh-browser" "bdh-db" "bdh-record"; do
+    if [ -f "$cmd" ]; then
+        sed -i 's/\r$//' "$cmd" 2>/dev/null
+        cp "$cmd" "$INSTALL_DIR/$cmd"
+        chmod +x "$INSTALL_DIR/$cmd"
     fi
-    echo "Note: In Termux, start DB manually using: pg_ctl -D $PG_DATA start"
+done
+
+# 7. PostgreSQL Setup
+echo "Setting up PostgreSQL Database..."
+if [ "$IS_TERMUX" = true ]; then
+    mkdir -p "$PG_DATA"
+    [ -z "$(ls -A "$PG_DATA" 2>/dev/null)" ] && initdb "$PG_DATA"
 else
-    # Arch Linux-க்கான PostgreSQL Setup
     if [ -z "$(ls -A "$PG_DATA" 2>/dev/null)" ]; then
         su - postgres -c "initdb -D $PG_DATA"
-        echo "PostgreSQL initialized successfully."
-    else
-        echo "PostgreSQL is already initialized."
     fi
-    systemctl enable --now postgresql
+    systemctl enable --now postgresql 2>/dev/null
 fi
 
-sed -i 's/\r$//' bdh-db 2>/dev/null
-cp bdh-db "$INSTALL_DIR/bdh-db" 2>/dev/null || echo "bdh-db skipped (not found)"
-[ -f "$INSTALL_DIR/bdh-db" ] && chmod +x "$INSTALL_DIR/bdh-db"
-
-# =========================================================
-# 6. bdh-record கமாண்டை இன்ஸ்டால் செய்தல்
-# =========================================================
-echo "Installing bdh-record shortcut..."
-sed -i 's/\r$//' bdh-record 2>/dev/null
-cp bdh-record "$INSTALL_DIR/bdh-record" 2>/dev/null || echo "bdh-record skipped (not found)"
-[ -f "$INSTALL_DIR/bdh-record" ] && chmod +x "$INSTALL_DIR/bdh-record"
-
-# =========================================================
-# 7. Configuration file-களை காப்பி செய்தல் (No tmux.conf!)
-# =========================================================
+# 8. Copy Configuration files
 echo "Copying configuration files..."
 cp configs/nanorc "$CONFIG_DIR/nanorc" 2>/dev/null
 cp configs/ide_layout.tz "$CONFIG_DIR/ide_layout.tz" 2>/dev/null
-
 chmod -R 755 "$CONFIG_DIR"
 
-# =========================================================
-# 8. Ranger-ல் தமிழி (.tz) ஃபைலை Nano-வில் திறக்க செட்டப்
-# =========================================================
-echo "Configuring Ranger for Tamizhi (.tz) files..."
-
+# 9. Ranger setup for Tamizhi (.tz)
 if [ -n "$TARGET_HOME" ]; then
     RANGER_CONF_DIR="$TARGET_HOME/.config/ranger"
-    
-    if [ "$IS_TERMUX" = true ]; then
-        mkdir -p "$RANGER_CONF_DIR"
-        if ! grep -q "ext tz" "$RANGER_CONF_DIR/rifle.conf" 2>/dev/null; then
-            echo 'ext tz = nano "$@"' >> "$RANGER_CONF_DIR/rifle.conf"
-        fi
-    else
-        sudo -u "$TARGET_USER" mkdir -p "$RANGER_CONF_DIR"
-        if ! grep -q "ext tz" "$RANGER_CONF_DIR/rifle.conf" 2>/dev/null; then
-            echo 'ext tz = nano "$@"' | sudo -u "$TARGET_USER" tee -a "$RANGER_CONF_DIR/rifle.conf" > /dev/null
-        fi
+    mkdir -p "$RANGER_CONF_DIR" 2>/dev/null
+    if ! grep -q "ext tz" "$RANGER_CONF_DIR/rifle.conf" 2>/dev/null; then
+        echo 'ext tz = nano "$@"' >> "$RANGER_CONF_DIR/rifle.conf"
     fi
 fi
 
-# =========================================================
-# 9. பழைய BDH Engine செஷன்களை அழித்தல்
-# =========================================================
-echo "Resetting old sessions..."
+# 10. Reset Old Sessions
 pkill -f bdh-terminal-engine 2>/dev/null
 
 echo "---------------------------------------------------"
-echo "✅ Installation Complete for $TARGET_USER!"
-echo "✅ IDE open: bdh-ide (Powered by bdh-terminal-engine)"
-echo "✅ IDE full close : bdh-ide-kill"
-echo "✅ Browser open: bdh-browser <URL>"
-echo "✅ Database open: bdh-db"
-echo "✅ Record screen: bdh-record"
+echo -e "✅ \e[1;32mInstallation Complete for $TARGET_USER!\e[0m"
+echo -e "✅ \e[1;36mIDE open        : bdh-ide\e[0m"
+echo -e "✅ \e[1;36mIDE full close  : bdh-ide-kill\e[0m"
 echo "---------------------------------------------------"
