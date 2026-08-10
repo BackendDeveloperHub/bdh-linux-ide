@@ -51,10 +51,19 @@ void load_files(const char *path) {
     closedir(dir);
 }
 
-// திரையை வரையும் ஃபங்ஷன்
+// திரையை வரையும் ஃபங்ஷன் (With PWD Update)
 void draw_tree() {
+    // தற்போது இருக்கும் பாதையை (PWD) கண்டுபிடிக்க
+    char cwd[1024];
+    if (getcwd(cwd, sizeof(cwd)) == NULL) {
+        strcpy(cwd, "Unknown Path");
+    }
+
     printf("\033[2J\033[H"); // திரையை க்ளீன் செய்து கர்சரை மேலே கொண்டு செல்ல
+    
+    // Header & PWD Display
     printf("\033[1;36m[ BDH Workspace: Interactive Tree ]\033[0m\r\n");
+    printf("\033[1;33m 📍 PWD: %s \033[0m\r\n", cwd); // மஞ்சள் நிறத்தில் PWD
     printf("│\r\n");
     
     for (int i = 0; i < file_count; i++) {
