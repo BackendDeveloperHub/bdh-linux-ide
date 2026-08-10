@@ -89,28 +89,48 @@ int main() {
         draw_tree();
         
         char c;
-        read(STDIN_FILENO, &c, 1);
-        
-        if (c == 'q') {
-            break; // Q அழுத்தினால் வெளியேற
-        } 
-        else if (c == 'w' || c == 'k' || c == 'A') { // Up (A is part of arrow key sequence)
-            if (selected_idx > 0) selected_idx--;
-        } 
-        else if (c == 's' || c == 'j' || c == 'B') { // Down (B is part of arrow key sequence)
-            if (selected_idx < file_count - 1) selected_idx++;
-        } 
-        else if (c == '\n' || c == '\r') { // ENTER கீ
-            if (!files[selected_idx].is_dir) {
-                // ஃபைலாக இருந்தால் bdh-edit-ஐ ஓபன் செய்வது
-                disable_raw_mode(); // டெர்மினலை பழைய நிலைக்கு மாற்றிவிட்டு ஓபன் செய்ய வேண்டும்
-                printf("\033[2J\033[H"); 
-                
-                char cmd[512];
-                snprintf(cmd, sizeof(cmd), "bdh-edit %s", files[selected_idx].name);
-                system(cmd); // bdh-edit-ஐ இயக்குதல்
-                
-                enable_raw_mode(); // திரும்பி வந்ததும் மறுபடியும் Raw Mode
+        // ஒரு கீ அழுத்தப்படுகிறதா என்று படிக்கிறோம்
+        if (read(STDIN_FILENO, &c, 1) == 1) {
+            
+            // 1. Arrow Keys (Escape Sequence) செக் செய்தல்
+            if (c == '\033') { 
+                char seq[3];
+                if (read(STDIN_FILENO, &seq[0], 1) == 0) continue;
+                if (read(STDIN_FILENO, &seq[1], 1) == 0) continue;
+
+                if (seq[0] == '[') {
+                    if (seq[1] == 'A') { // Up Arrow
+                        if (selected_idx > 0) selected_idx--;
+                    } 
+                    else if (seq[1] == 'B') { // Down Arrow
+                        if (selected_idx < file_count - 1) selected_idx++;
+                    }
+                }
+            } 
+            // 2. சாதாரண பட்டன்கள் (q, Enter, j, k)
+            else {
+                if (c == 'q') {
+                    break; // Q அழுத்தினால் வெளியேற
+                } 
+                else if (c == 'w' || c == 'k') { // வழுக்கையாக w/k அழுத்தினால் மேலே செல்ல
+                    if (selected_idx > 0) selected_idx--;
+                } 
+                else if (c == 's' || c == 'j') { // வழுக்கையாக s/j அழுத்தினால் கீழே செல்ல
+                    if (selected_idx < file_count - 1) selected_idx++;
+                } 
+                else if (c == '\n' || c == '\r') { // ENTER கீ
+                    if (!files[selected_idx].is_dir) {
+                        // ஃபைலாக இருந்தால் bdh-edit-ஐ ஓபன் செய்வது
+                        disable_raw_mode(); 
+                        printf("\033[2J\033[H"); 
+                        
+                        char cmd[512];
+                        snprintf(cmd, sizeof(cmd), "bdh-edit %s", files[selected_idx].name);
+                        system(cmd); 
+                        
+                        enable_raw_mode(); 
+                    }
+                }
             }
         }
     }
