@@ -76,13 +76,36 @@ else
 fi
 
 # =========================================================
-# 4. 🔥 DYNAMIC GENERATION OF BDH-IDE LAUNCHER (ZERO BUG)
+# 4. 🌳 COMPILE & INSTALL BDH-TREE (Custom File Explorer)
+# =========================================================
+echo "Compiling BDH-Tree..."
+if [ -f "bdh-tree.c" ]; then
+    # Termux-க்கு clang, Arch-க்கு gcc பயன்படுத்துதல்
+    CC_COMPILER="gcc"
+    [ "$IS_TERMUX" = true ] && CC_COMPILER="clang"
+    
+    $CC_COMPILER bdh-tree.c -o bdh-tree
+    
+    if [ -f "bdh-tree" ]; then
+        cp -f bdh-tree "$INSTALL_DIR/bdh-tree"
+        chmod +x "$INSTALL_DIR/bdh-tree"
+        echo -e "\e[1;32m✅ BDH-Tree installed globally as 'bdh-tree'!\e[0m"
+    else
+        echo -e "\e[1;31m❌ BDH-Tree compilation failed!\e[0m"
+        exit 1
+    fi
+else
+    echo -e "\e[1;33m⚠️ bdh-tree.c not found in current directory. Skipping BDH-Tree.\e[0m"
+fi
+
+# =========================================================
+# 5. 🔥 DYNAMIC GENERATION OF BDH-IDE LAUNCHER (ZERO BUG)
 # =========================================================
 echo "Creating clean Sovereign IDE Launcher..."
 cat << 'EOF' > "$INSTALL_DIR/bdh-ide"
 #!/bin/bash
 export BDH_IDE_ACTIVE=1
-export EDITOR="nano"
+export EDITOR="bdh-edit"
 export BROWSER="bdh-browser"
 
 clear
@@ -92,7 +115,7 @@ exec bdh-terminal-engine "$@"
 EOF
 chmod +x "$INSTALL_DIR/bdh-ide"
 
-# 5. Create bdh-ide-kill Command
+# 6. Create bdh-ide-kill Command
 cat << 'EOF' > "$INSTALL_DIR/bdh-ide-kill"
 #!/bin/bash
 pkill -f bdh-terminal-engine 2>/dev/null
@@ -100,7 +123,7 @@ echo -e "\e[1;32mBDH Sovereign IDE sessions stopped successfully!\e[0m"
 EOF
 chmod +x "$INSTALL_DIR/bdh-ide-kill"
 
-# 6. Extra Shortcuts (Browser, DB, Record)
+# 7. Extra Shortcuts (Browser, DB, Record)
 for cmd in "bdh-browser" "bdh-db" "bdh-record"; do
     if [ -f "$cmd" ]; then
         sed -i 's/\r$//' "$cmd" 2>/dev/null
@@ -109,7 +132,7 @@ for cmd in "bdh-browser" "bdh-db" "bdh-record"; do
     fi
 done
 
-# 7. PostgreSQL Setup
+# 8. PostgreSQL Setup
 echo "Setting up PostgreSQL Database..."
 if [ "$IS_TERMUX" = true ]; then
     mkdir -p "$PG_DATA"
@@ -121,20 +144,11 @@ else
     systemctl enable --now postgresql 2>/dev/null
 fi
 
-# 8. Copy Configuration files
+# 9. Copy Configuration files
 echo "Copying configuration files..."
 cp configs/nanorc "$CONFIG_DIR/nanorc" 2>/dev/null
 cp configs/ide_layout.tz "$CONFIG_DIR/ide_layout.tz" 2>/dev/null
 chmod -R 755 "$CONFIG_DIR"
-
-# 9. Ranger setup for Tamizhi (.tz)
-if [ -n "$TARGET_HOME" ]; then
-    RANGER_CONF_DIR="$TARGET_HOME/.config/ranger"
-    mkdir -p "$RANGER_CONF_DIR" 2>/dev/null
-    if ! grep -q "ext tz" "$RANGER_CONF_DIR/rifle.conf" 2>/dev/null; then
-        echo 'ext tz = nano "$@"' >> "$RANGER_CONF_DIR/rifle.conf"
-    fi
-fi
 
 # 10. Reset Old Sessions
 pkill -f bdh-terminal-engine 2>/dev/null
@@ -142,5 +156,6 @@ pkill -f bdh-terminal-engine 2>/dev/null
 echo "---------------------------------------------------"
 echo -e "✅ \e[1;32mInstallation Complete for $TARGET_USER!\e[0m"
 echo -e "✅ \e[1;36mIDE open        : bdh-ide\e[0m"
+echo -e "✅ \e[1;36mFile Tree       : bdh-tree\e[0m"
 echo -e "✅ \e[1;36mIDE full close  : bdh-ide-kill\e[0m"
 echo "---------------------------------------------------"
