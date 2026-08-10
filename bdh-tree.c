@@ -78,7 +78,7 @@ void draw_tree() {
         }
         printf("\r\n");
     }
-    printf("\r\n[UP/DOWN: Navigate] | [ENTER: Open] | [Q: Quit]\r\n");
+    printf("\r\n[UP/DOWN: Navigate] | [RIGHT/ENTER: Open] | [LEFT/BACKSPACE: Back] | [Q: Quit]\r\n");
 }
 
 int main() {
@@ -105,22 +105,45 @@ int main() {
                     else if (seq[1] == 'B') { // Down Arrow
                         if (selected_idx < file_count - 1) selected_idx++;
                     }
+                    else if (seq[1] == 'C') { // Right Arrow (👉 ஃபோல்டருக்குள் செல்ல)
+                        if (files[selected_idx].is_dir) {
+                            chdir(files[selected_idx].name); // டைரக்டரியை மாற்று
+                            load_files("."); // புதிய ஃபைல்களைப் படி
+                            selected_idx = 0;
+                        }
+                    }
+                    else if (seq[1] == 'D') { // Left Arrow (👈 பழைய ஃபோல்டருக்குத் திரும்ப)
+                        chdir(".."); // Parent Directory-க்கு செல்
+                        load_files(".");
+                        selected_idx = 0;
+                    }
                 }
             } 
-            // 2. சாதாரண பட்டன்கள் (q, Enter, j, k)
+            // 2. சாதாரண பட்டன்கள் (q, Enter, j, k, Backspace)
             else {
                 if (c == 'q') {
                     break; // Q அழுத்தினால் வெளியேற
                 } 
-                else if (c == 'w' || c == 'k') { // வழுக்கையாக w/k அழுத்தினால் மேலே செல்ல
+                else if (c == 'w' || c == 'k') { 
                     if (selected_idx > 0) selected_idx--;
                 } 
-                else if (c == 's' || c == 'j') { // வழுக்கையாக s/j அழுத்தினால் கீழே செல்ல
+                else if (c == 's' || c == 'j') { 
                     if (selected_idx < file_count - 1) selected_idx++;
                 } 
+                else if (c == 127 || c == 8 || c == 'b') { 
+                    // Backspace அல்லது 'b' அழுத்தினால் பின்னே வர (Go Back)
+                    chdir("..");
+                    load_files(".");
+                    selected_idx = 0;
+                }
                 else if (c == '\n' || c == '\r') { // ENTER கீ
-                    if (!files[selected_idx].is_dir) {
-                        // ஃபைலாக இருந்தால் bdh-edit-ஐ ஓபன் செய்வது
+                    if (files[selected_idx].is_dir) {
+                        // 📁 ஃபோல்டராக இருந்தால்: உள்ளே செல்ல வேண்டும் (Change Directory)
+                        chdir(files[selected_idx].name);
+                        load_files("."); // புதிய ஃபோல்டரில் உள்ள ஃபைல்களை லோட் செய்கிறோம்
+                        selected_idx = 0; // கர்சரை மீண்டும் முதலில் வைக்கிறோம்
+                    } else {
+                        // 📝 ஃபைலாக இருந்தால்: bdh-edit-ஐ ஓபன் செய்வது
                         disable_raw_mode(); 
                         printf("\033[2J\033[H"); 
                         
