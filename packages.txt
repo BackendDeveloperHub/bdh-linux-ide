@@ -1,6 +1,3 @@
-tmux
-ranger
-nano
 zsh
 fzf
 bat
