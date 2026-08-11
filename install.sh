@@ -7,7 +7,9 @@ echo -e "\e[1;36m+===================================================+\e[0m"
 echo -e "\e[1;32m     🔥 INSTALLING BDH SOVEREIGN DEV STACK 🔥      \e[0m"
 echo -e "\e[1;36m+===================================================+\e[0m"
 
-# 0. Environment Detection
+# 0. Environment Detection & Repo Path Saving
+REPO_DIR="$PWD"
+
 if [ -n "$TERMUX_VERSION" ] || [ -d "/data/data/com.termux" ]; then
     IS_TERMUX=true
     INSTALL_DIR="$PREFIX/bin"
@@ -24,7 +26,6 @@ fi
 echo -e "\n\e[1;33m[1/4] Installing Required Packages...\e[0m"
 if [ "$IS_TERMUX" = true ]; then
     pkg update -y
-    # qrencode-ஐ தவிர்த்துவிட்டு மற்றவற்றை இன்ஸ்டால் செய்தல்
     pkg install -y make clang git postgresql zsh fzf bat eza
 else
     if [ "$EUID" -ne 0 ]; then
@@ -49,17 +50,15 @@ cp -f bdh-engine "$INSTALL_DIR/bdh-terminal-engine"
 chmod 755 "$INSTALL_DIR/bdh-terminal-engine"
 echo -e "\e[1;32m  -> bdh-terminal-engine installed to $INSTALL_DIR!\e[0m"
 
-# 3. Compile & Install BDH-Tree
+# 3. Compile & Install BDH-Tree (Using Saved REPO_DIR)
 echo -e "\n\e[1;33m[3/4] Compiling BDH-Tree...\e[0m"
-cd - > /dev/null || exit 1
-
-if [ -f "bdh-tree.c" ]; then
+if [ -f "$REPO_DIR/bdh-tree.c" ]; then
     CC_COMP_TOOL="gcc"
     [ "$IS_TERMUX" = true ] && CC_COMP_TOOL="clang"
     
-    $CC_COMP_TOOL bdh-tree.c -o bdh-tree
-    if [ -f "bdh-tree" ]; then
-        cp -f bdh-tree "$INSTALL_DIR/bdh-tree"
+    $CC_COMP_TOOL "$REPO_DIR/bdh-tree.c" -o "$REPO_DIR/bdh-tree"
+    if [ -f "$REPO_DIR/bdh-tree" ]; then
+        cp -f "$REPO_DIR/bdh-tree" "$INSTALL_DIR/bdh-tree"
         chmod +x "$INSTALL_DIR/bdh-tree"
         echo -e "  -> bdh-tree compiled and installed!"
     else
@@ -67,19 +66,19 @@ if [ -f "bdh-tree.c" ]; then
         exit 1
     fi
 else
-    echo -e "\e[1;31m❌ Error: bdh-tree.c not found in current directory!\e[0m"
+    echo -e "\e[1;31m❌ Error: bdh-tree.c not found at $REPO_DIR!\e[0m"
     exit 1
 fi
 
-# 4. Compile & Install BDH-IDE Master Controller
+# 4. Compile & Install BDH-IDE Master Controller (Using Saved REPO_DIR)
 echo -e "\n\e[1;33m[4/4] Compiling & Installing BDH-IDE Master Controller...\e[0m"
-if [ -f "bdh-ide.c" ]; then
+if [ -f "$REPO_DIR/bdh-ide.c" ]; then
     CC_COMP_TOOL="gcc"
     [ "$IS_TERMUX" = true ] && CC_COMP_TOOL="clang"
     
-    $CC_COMP_TOOL bdh-ide.c -o bdh-ide
-    if [ -f "bdh-ide" ]; then
-        cp -f bdh-ide "$INSTALL_DIR/bdh-ide"
+    $CC_COMP_TOOL "$REPO_DIR/bdh-ide.c" -o "$REPO_DIR/bdh-ide"
+    if [ -f "$REPO_DIR/bdh-ide" ]; then
+        cp -f "$REPO_DIR/bdh-ide" "$INSTALL_DIR/bdh-ide"
         chmod +x "$INSTALL_DIR/bdh-ide"
         echo -e "\e[1;32m✅ C-based BDH-IDE Master Controller installed successfully!\e[0m"
     else
@@ -87,7 +86,7 @@ if [ -f "bdh-ide.c" ]; then
         exit 1
     fi
 else
-    echo -e "\e[1;31m❌ Error: bdh-ide.c not found in current directory!\e[0m"
+    echo -e "\e[1;31m❌ Error: bdh-ide.c not found at $REPO_DIR!\e[0m"
     exit 1
 fi
 
