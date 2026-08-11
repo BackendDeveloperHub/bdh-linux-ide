@@ -51,25 +51,23 @@ void load_files(const char *path) {
     closedir(dir);
 }
 
-// திரையை வரையும் ஃபங்ஷன் (With PWD Update)
+// திரையை வரையும் ஃபங்ஷன் (Fixed PWD Display)
 void draw_tree() {
-    // தற்போது இருக்கும் பாதையை (PWD) கண்டுபிடிக்க
     char cwd[1024];
     if (getcwd(cwd, sizeof(cwd)) == NULL) {
         strcpy(cwd, "Unknown Path");
     }
 
-    printf("\033[2J\033[H"); // திரையை க்ளீன் செய்து கர்சரை மேலே கொண்டு செல்ல
+    printf("\033[2J\033[H"); // திரையை க்ளீன் செய்
     
-    // Header & PWD Display
+    // Header & PWD Display (கச்சிதமான கலர் ரீசெட்டுடன்)
     printf("\033[1;36m[ BDH Workspace: Interactive Tree ]\033[0m\r\n");
-    printf("\033[1;33m 📍 PWD: %s \033[0m\r\n", cwd); // மஞ்சள் நிறத்தில் PWD
+    printf("\033[1;33m📍 PWD: %s\033[0m\r\n", cwd); // மஞ்சள் நிற PWD
     printf("│\r\n");
     
     for (int i = 0; i < file_count; i++) {
-        // செலக்ட் ஆன வரியை Highlight செய்வது
         if (i == selected_idx) {
-            printf("\033[1;32m  > \033[7m"); // பச்சை நிற ' > ' மற்றும் Inverted Colors
+            printf("\033[1;32m  > \033[7m"); 
         } else {
             printf("    ");
         }
@@ -77,13 +75,13 @@ void draw_tree() {
         printf("├── ");
         
         if (files[i].is_dir) {
-            printf("\033[1;36m%s/\033[0m", files[i].name); // போல்டர் - Blue
+            printf("\033[1;36m%s/\033[0m", files[i].name); 
         } else {
-            printf("%s", files[i].name); // ஃபைல் - White
+            printf("%s", files[i].name); 
         }
 
         if (i == selected_idx) {
-            printf("\033[0m"); // Highlight-ஐ முடிப்பது
+            printf("\033[0m"); 
         }
         printf("\r\n");
     }
