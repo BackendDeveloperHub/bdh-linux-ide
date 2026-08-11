@@ -82,7 +82,7 @@ void save_editor_file() {
     fclose(f);
 }
 
-// --- The Grand UI Drawer (With Over-write Fix) ---
+// --- The Grand UI Drawer (Fully Fixed Over-lap & Clipping) ---
 void draw_ui() {
     char cwd[1024];
     if (getcwd(cwd, sizeof(cwd)) == NULL) strcpy(cwd, "Unknown");
@@ -97,24 +97,46 @@ void draw_ui() {
     // 2. Left Pane (TREE)
     printf("\033[1;1H"); 
     printf(focus == 0 ? "\033[1;42m[ BDH-TREE (ACTIVE) ]\033[0m\r\n" : "\033[1;37m[ BDH-TREE ]\033[0m\r\n");
-    printf("\033[1;33m PWD: %s \033[0m\r\n\r\n", cwd);
+    
+    // PWD-ஐயும் பார்டருக்குள் கட் செய்து காட்டுவது
+    char clipped_cwd[256];
+    int max_pwd_width = divider_col - 8;
+    if (max_pwd_width < 5) max_pwd_width = 5;
+    strncpy(clipped_cwd, cwd, max_pwd_width);
+    clipped_cwd[max_pwd_width] = '\0';
+    printf("\033[1;33m PWD: %s \033[0m\r\n\r\n", clipped_cwd);
     
     for (int i = 0; i < file_count && i < total_rows - 5; i++) {
-        if (i == selected_idx && focus == 0) printf("\033[1;32m  > \033[7m"); 
-        else printf("    ");
+        // ஒரு வரிக்கான மேக்ஸிமம் அகலத்தை துல்லியமாக நிர்ணயித்தல்
+        int max_name_len = divider_col - 8;
+        if (max_name_len < 4) max_name_len = 4;
 
-        // ட்ரீ பெயர்களை டிவைடருக்குள் கட் செய்து காட்ட
         char display_name[256];
-        int max_tree_width = divider_col - 6;
-        if (max_tree_width < 5) max_tree_width = 5;
+        strncpy(display_name, files[i].name, max_name_len);
+        display_name[max_name_len] = '\0';
+
+        if (i == selected_idx && focus == 0) {
+            printf("\033[1;32m  > \033[7m"); 
+        } else {
+            printf("    ");
+        }
+
+        if (files[i].is_dir) {
+            printf("\033[1;34m├── %s/\033[0m", display_name);
+        } else {
+            printf("├── %s", display_name);
+        }
+
+        if (i == selected_idx && focus == 0) {
+            printf("\033[0m");
+        }
         
-        strncpy(display_name, files[i].name, max_tree_width);
-        display_name[max_tree_width] = '\0';
-
-        if (files[i].is_dir) printf("\033[1;34m├── %s/\033[0m", display_name);
-        else printf("├── %s", display_name);
-
-        if (i == selected_idx && focus == 0) printf("\033[0m");
+        // மீதமுள்ள இடைவெளியை காலியாக நிரப்பி ஓவர்-லேப் ஆவதை தடுப்பது
+        int current_len = strlen(display_name) + 7; // '    ├── ' length
+        for (int spaces = current_len; spaces < divider_col; spaces++) {
+            printf(" ");
+        }
+        
         printf("\r\n");
     }
 
@@ -196,7 +218,6 @@ int main() {
                     if (files[selected_idx].is_dir) { 
                         chdir(files[selected_idx].name); load_files("."); selected_idx = 0; 
                     } else {
-                        // ஃபைலைத் தேர்ந்தெடுத்தால் அதை எடிட்டரில் லோட் செய்து Focus-ஐ மாற்று!
                         load_file_to_editor(files[selected_idx].name);
                         focus = 1; 
                     }
