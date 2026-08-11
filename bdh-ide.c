@@ -8,6 +8,7 @@
 #include <sys/ioctl.h>
 
 #define MAX_FILES 1024
+#define EDITOR_BUF_SIZE 4096
 
 // --- Global States ---
 int focus = 0; // 0 = Tree, 1 = Editor
@@ -17,6 +18,13 @@ int total_rows, total_cols, divider_col;
 typedef struct { char name[256]; int is_dir; } FileEntry;
 FileEntry files[MAX_FILES];
 int file_count = 0, selected_idx = 0;
+
+// Editor Variables
+char editor_buf[EDITOR_BUF_SIZE] = "";
+int editor_len = 0;
+char current_file[256] = "untitled.txt";
+int editor_cursor_x = 0;
+int editor_cursor_y = 0;
 
 // Terminal Raw Mode
 struct termios orig_termios;
@@ -53,6 +61,28 @@ void load_files(const char *path) {
     closedir(dir);
 }
 
+// ஃபைலை எடிட்டரில் லோட் செய்யும் ஃபங்ஷன்
+void load_file_to_editor(const char *filename) {
+    FILE *f = fopen(filename, "r");
+    if (!f) {
+        snprintf(editor_buf, EDITOR_BUF_SIZE, "// New File: %s\n", filename);
+        editor_len = strlen(editor_buf);
+        return;
+    }
+    editor_len = fread(editor_buf, 1, EDITOR_BUF_SIZE - 1, f);
+    editor_buf[editor_len] = '\0';
+    fclose(f);
+    strncpy(current_file, filename, sizeof(current_file) - 1);
+}
+
+// எடிட்டர் கண்டென்ட்டை சேவ் செய்யும் ஃபங்ஷன்
+void save_editor_file() {
+    FILE *f = fopen(current_file, "w");
+    if (!f) return;
+    fwrite(editor_buf, 1, editor_len, f);
+    fclose(f);
+}
+
 // --- The Grand UI Drawer ---
 void draw_ui() {
     char cwd[1024];
@@ -66,7 +96,7 @@ void draw_ui() {
     }
 
     // 2. Left Pane (TREE)
-    printf("\033[1;1H"); // இடதுபுறம் கர்சரை வை
+    printf("\033[1;1H"); 
     printf(focus == 0 ? "\033[1;42m[ BDH-TREE (ACTIVE) ]\033[0m\r\n" : "\033[1;37m[ BDH-TREE ]\033[0m\r\n");
     printf("\033[1;33m PWD: %s \033[0m\r\n\r\n", cwd);
     
@@ -82,16 +112,31 @@ void draw_ui() {
     }
 
     // 3. Right Pane (EDITOR)
-    printf("\033[1;%dH", divider_col + 2); // வலதுபுறம் கர்சரை வை
-    printf(focus == 1 ? "\033[1;44m[ BDH-EDIT (ACTIVE) - Tamizhi ]\033[0m" : "\033[1;37m[ BDH-EDIT ]\033[0m");
-    printf("\033[3;%dH\033[1;30mEditor logic will be injected here...\033[0m", divider_col + 2);
+    printf("\033[1;%dH", divider_col + 2); 
+    if (focus == 1) {
+        printf("\033[1;44m[ BDH-EDIT (ACTIVE) - File: %s ]\033[0m", current_file);
+    } else {
+        printf("\033[1;37m[ BDH-EDIT - File: %s ]\033[0m", current_file);
+    }
+
+    // எடிட்டர் டெக்ஸ்டை வலதுபுறத்தில் பிரிண்ட் செய்வது
+    int row = 3;
+    char *line = strtok(strdup(editor_buf), "\n");
+    while (line != NULL && row < total_rows - 1) {
+        printf("\033[%d;%dH\033[0m%s", row, divider_col + 2, line);
+        row++;
+        line = strtok(NULL, "\n");
+    }
 
     // 4. Footer
-    printf("\033[%d;1H\033[1;33m [TAB]: Switch Pane | [Q]: Quit \033[0m", total_rows);
+    printf("\033[%d;1H\033[1;33m [TAB]: Switch Pane | [Ctrl+S]: Save | [Q]: Quit \033[0m", total_rows);
 
-    // கர்சரை ஆக்டிவ் பேனலில் வைக்க
-    if (focus == 0) printf("\033[%d;6H", selected_idx + 4);
-    else printf("\033[3;%dH", divider_col + 2);
+    // கர்சரை சரியான இடத்தில் வைப்பது
+    if (focus == 0) {
+        printf("\033[%d;6H", selected_idx + 4);
+    } else {
+        printf("\033[3;%dH", divider_col + 2);
+    }
     
     fflush(stdout);
 }
@@ -108,7 +153,7 @@ int main() {
             
             if (c == 'q' && focus == 0) break; // Tree-ல் இருந்து Q அழுத்தினால் வெளியேற
             
-            if (c == 9) { // TAB பட்டன் அழுத்தினால் Focus மாறுதல்
+            if (c == 9) { // TAB பட்டன்
                 focus = !focus; 
                 draw_ui();
                 continue;
@@ -122,26 +167,53 @@ int main() {
                     if (seq[0] == '[') {
                         if (seq[1] == 'A' && selected_idx > 0) selected_idx--; // UP
                         else if (seq[1] == 'B' && selected_idx < file_count - 1) selected_idx++; // DOWN
-                        else if (seq[1] == 'C' && files[selected_idx].is_dir) { // RIGHT (Enter Dir)
+                        else if (seq[1] == 'C' && files[selected_idx].is_dir) { // RIGHT
                             chdir(files[selected_idx].name); load_files("."); selected_idx = 0;
                         }
-                        else if (seq[1] == 'D') { // LEFT (Go Back)
+                        else if (seq[1] == 'D') { // LEFT
                             chdir(".."); load_files("."); selected_idx = 0;
                         }
                     }
                 } 
-                else if (c == 127 || c == 8) { chdir(".."); load_files("."); selected_idx = 0; } // Backspace
+                else if (c == 127 || c == 8) { chdir(".."); load_files("."); selected_idx = 0; }
                 else if (c == '\n' || c == '\r') {
-                    if (files[selected_idx].is_dir) { chdir(files[selected_idx].name); load_files("."); selected_idx = 0; }
-                    else { focus = 1; } // ஃபைலைத் திறக்க வலதுபுறம் (Editor-க்கு) Focus-ஐ மாற்று!
+                    if (files[selected_idx].is_dir) { 
+                        chdir(files[selected_idx].name); load_files("."); selected_idx = 0; 
+                    } else {
+                        // ஃபைலைத் தேர்ந்தெடுத்தால் அதை எடிட்டரில் லோட் செய்து Focus-ஐ மாற்று!
+                        load_file_to_editor(files[selected_idx].name);
+                        focus = 1; 
+                    }
                 }
                 draw_ui();
             }
             // --- EDITOR LOGIC (Right Pane) ---
             else if (focus == 1) {
-                // இங்கு உங்களது 1-Byte தமிழ் கீபோர்டு லாஜிக்கை இணைப்போம்!
-                // இப்போதைக்கு ESC அழுத்தினால் மீண்டும் Tree-க்கு வர ஒரு சின்ன ஷார்ட்கட்:
-                if (c == '\033') { focus = 0; draw_ui(); }
+                if (c == '\033') { 
+                    focus = 0; // ESC அழுத்தினால் Tree-க்கு திரும்பும்
+                }
+                else if (c == 19) { // Ctrl+S (ASCII 19) அழுத்தினால் சேவ் ஆகும்
+                    save_editor_file();
+                }
+                else if (c >= 32 && c <= 126) { // சாதாரண எழுத்துக்கள் டைப் செய்தால்
+                    if (editor_len < EDITOR_BUF_SIZE - 1) {
+                        editor_buf[editor_len++] = c;
+                        editor_buf[editor_len] = '\0';
+                    }
+                }
+                else if (c == 127 || c == 8) { // Backspace
+                    if (editor_len > 0) {
+                        editor_len--;
+                        editor_buf[editor_len] = '\0';
+                    }
+                }
+                else if (c == '\n' || c == '\r') { // Enter
+                    if (editor_len < EDITOR_BUF_SIZE - 1) {
+                        editor_buf[editor_len++] = '\n';
+                        editor_buf[editor_len] = '\0';
+                    }
+                }
+                draw_ui();
             }
         }
     }
