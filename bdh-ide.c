@@ -23,8 +23,6 @@ int file_count = 0, selected_idx = 0;
 char editor_buf[EDITOR_BUF_SIZE] = "";
 int editor_len = 0;
 char current_file[256] = "untitled.txt";
-int editor_cursor_x = 0;
-int editor_cursor_y = 0;
 
 // Terminal Raw Mode
 struct termios orig_termios;
@@ -67,6 +65,7 @@ void load_file_to_editor(const char *filename) {
     if (!f) {
         snprintf(editor_buf, EDITOR_BUF_SIZE, "// New File: %s\n", filename);
         editor_len = strlen(editor_buf);
+        strncpy(current_file, filename, sizeof(current_file) - 1);
         return;
     }
     editor_len = fread(editor_buf, 1, EDITOR_BUF_SIZE - 1, f);
@@ -83,7 +82,7 @@ void save_editor_file() {
     fclose(f);
 }
 
-// --- The Grand UI Drawer ---
+// --- The Grand UI Drawer (With Over-write Fix) ---
 void draw_ui() {
     char cwd[1024];
     if (getcwd(cwd, sizeof(cwd)) == NULL) strcpy(cwd, "Unknown");
@@ -104,14 +103,22 @@ void draw_ui() {
         if (i == selected_idx && focus == 0) printf("\033[1;32m  > \033[7m"); 
         else printf("    ");
 
-        if (files[i].is_dir) printf("\033[1;34m├── %s/\033[0m", files[i].name);
-        else printf("├── %s", files[i].name);
+        // ட்ரீ பெயர்களை டிவைடருக்குள் கட் செய்து காட்ட
+        char display_name[256];
+        int max_tree_width = divider_col - 6;
+        if (max_tree_width < 5) max_tree_width = 5;
+        
+        strncpy(display_name, files[i].name, max_tree_width);
+        display_name[max_tree_width] = '\0';
+
+        if (files[i].is_dir) printf("\033[1;34m├── %s/\033[0m", display_name);
+        else printf("├── %s", display_name);
 
         if (i == selected_idx && focus == 0) printf("\033[0m");
         printf("\r\n");
     }
 
-    // 3. Right Pane (EDITOR)
+    // 3. Right Pane (EDITOR Header)
     printf("\033[1;%dH", divider_col + 2); 
     if (focus == 1) {
         printf("\033[1;44m[ BDH-EDIT (ACTIVE) - File: %s ]\033[0m", current_file);
@@ -119,14 +126,23 @@ void draw_ui() {
         printf("\033[1;37m[ BDH-EDIT - File: %s ]\033[0m", current_file);
     }
 
-    // எடிட்டர் டெக்ஸ்டை வலதுபுறத்தில் பிரிண்ட் செய்வது
+    // எடிட்டர் டெக்ஸ்டை பார்டரை தாண்டாமல் கட் செய்து பிரிண்ட் செய்வது
     int row = 3;
-    char *line = strtok(strdup(editor_buf), "\n");
+    int max_editor_width = total_cols - divider_col - 4;
+    if (max_editor_width < 10) max_editor_width = 10;
+
+    char *buf_copy = strdup(editor_buf);
+    char *line = strtok(buf_copy, "\n");
     while (line != NULL && row < total_rows - 1) {
-        printf("\033[%d;%dH\033[0m%s", row, divider_col + 2, line);
+        char clipped_line[1024];
+        strncpy(clipped_line, line, max_editor_width);
+        clipped_line[max_editor_width] = '\0';
+
+        printf("\033[%d;%dH\033[0m%s", row, divider_col + 2, clipped_line);
         row++;
         line = strtok(NULL, "\n");
     }
+    free(buf_copy);
 
     // 4. Footer
     printf("\033[%d;1H\033[1;33m [TAB]: Switch Pane | [Ctrl+S]: Save | [Q]: Quit \033[0m", total_rows);
