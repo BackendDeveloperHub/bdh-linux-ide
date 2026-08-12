@@ -1,47 +1,55 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <libpq-fe.h> // PostgreSQL-க்கான அதிகாரப்பூர்வ C ஹெடர் ஃபைல்
+#include "../include/bdh-db.h"
 
-// ஏதேனும் எரர் வந்தால் மெமரியை க்ளீன் செய்துவிட்டு வெளியேற
-void exit_nicely(PGconn *conn) {
-    PQfinish(conn);
-    exit(1);
-}
-
-int main() {
-    printf("\033[1;36m[ BDH-DB Engine ] Initializing Native C Connection...\033[0m\n");
-
-    // 1. Connection String: உங்கள் லோக்கல் டேட்டாபேஸ் பெயர் மற்றும் யூசர் (தேவைப்பட்டால் மாற்றிக்கொள்ளலாம்)
-    const char *conninfo = "dbname=postgres user=postgres";
-
-    // 2. டேட்டாபேஸுடன் TCP Socket வழியாக நேரடியாக கனெக்ட் செய்தல்
+// 1. டேட்டாபேஸ் கனெக்ஷனை உருவாக்கும் ஃபங்ஷன்
+PGconn* db_connect(const char *conninfo) {
     PGconn *conn = PQconnectdb(conninfo);
 
-    // 3. கனெக்ஷன் ஸ்டேட்டஸை செக் செய்தல்
     if (PQstatus(conn) != CONNECTION_OK) {
-        fprintf(stderr, "\033[1;31m[Error] Connection to database failed: %s\033[0m\n", PQerrorMessage(conn));
-        exit_nicely(conn);
+        fprintf(stderr, "\033[1;31m[DB Error] Connection failed: %s\033[0m\n", PQerrorMessage(conn));
+        PQfinish(conn);
+        return NULL;
+    }
+    
+    return conn;
+}
+
+// 2. SQL குவரியை ரன் செய்து அவுட்புட்டைக் காட்டும் ஃபங்ஷன்
+void db_execute_query(PGconn *conn, const char *query) {
+    if (conn == NULL) {
+        printf("\033[1;31m[DB Error] No active database connection.\033[0m\n");
+        return;
     }
 
-    printf("\033[1;32m[Success] Connected to PostgreSQL!\033[0m\n");
+    PGresult *res = PQexec(conn, query);
 
-    // 4. SQL கமாண்டை C-ப்ரோக்ராம் மூலமாக சர்வெருக்கு அனுப்புதல்
-    // இங்கே நாம் சர்வரின் வெர்ஷனை (Version) கேட்கிறோம்
-    PGresult *res = PQexec(conn, "SELECT version();");
-
-    if (PQresultStatus(res) != PGRES_TUPLES_OK) {
-        fprintf(stderr, "\033[1;31m[Error] SELECT command failed: %s\033[0m\n", PQerrorMessage(conn));
+    if (PQresultStatus(res) != PGRES_TUPLES_OK && PQresultStatus(res) != PGRES_COMMAND_OK) {
+        fprintf(stderr, "\033[1;31m[DB Error] Query failed: %s\033[0m\n", PQerrorMessage(conn));
         PQclear(res);
-        exit_nicely(conn);
+        return;
     }
 
-    // 5. டேட்டாபேஸ் அனுப்பிய ரிசல்ட்டைப் படித்து ஸ்கிரீனில் காட்டுதல்
-    // PQgetvalue(result, row_number, column_number)
-    printf("\n\033[1;33m[Server Info] ->\033[0m %s\n\n", PQgetvalue(res, 0, 0));
+    // ரிசல்ட்டில் உள்ள ரோ (Rows) மற்றும் காலம் (Columns) எண்ணிக்கையைக் கண்டுபிடித்தல்
+    int rows = PQntuples(res);
+    int cols = PQnfields(res);
 
-    // 6. மெமரியை க்ளீன் செய்து கனெக்ஷனைத் துண்டித்தல்
+    printf("\033[1;34m--- Query Results ---\033[0m\n");
+    for (int i = 0; i < rows; i++) {
+        for (int j = 0; j < cols; j++) {
+            printf("%s\t", PQgetvalue(res, i, j));
+        }
+        printf("\n");
+    }
+    printf("\033[1;34m---------------------\033[0m\n");
+
     PQclear(res);
-    PQfinish(conn);
+}
 
-    return 0;
+// 3. கனெக்ஷனைத் துண்டிக்கும் ஃபங்ஷன்
+void db_close(PGconn *conn) {
+    if (conn != NULL) {
+        PQfinish(conn);
+        printf("\033[1;32m[DB] Connection closed cleanly.\033[0m\n");
+    }
 }
