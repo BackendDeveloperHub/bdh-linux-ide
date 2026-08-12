@@ -5,10 +5,10 @@
 #include <string.h>
 #include <termios.h>
 #include <unistd.h>
+#include <sys/ioctl.h> // டெர்மினல் அளவைக் கண்டுபிடிக்க இது அவசியம்
 
 #define MAX_FILES 1024
 
-// ஃபைல்களை ஸ்டோர் செய்ய ஒரு Structure
 typedef struct {
     char name[256];
     int is_dir;
@@ -17,9 +17,10 @@ typedef struct {
 FileEntry files[MAX_FILES];
 int file_count = 0;
 int selected_idx = 0;
+int window_start = 0; // ஸ்க்ரோலிங் வியூபோர்ட்டின் தொடக்கம்
 
-// டெர்மினலை Raw Mode-க்கு மாற்றும் ஃபங்ஷன் (Enter, Arrow keys-ஐ பிடிக்க)
 struct termios orig_termios;
+
 void disable_raw_mode() {
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
 }
@@ -28,16 +29,17 @@ void enable_raw_mode() {
     tcgetattr(STDIN_FILENO, &orig_termios);
     atexit(disable_raw_mode);
     struct termios raw = orig_termios;
-    raw.c_lflag &= ~(ECHO | ICANON); // Enter அடிக்காமல் பட்டனைப் பிடிக்க
+    raw.c_lflag &= ~(ECHO | ICANON); 
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
 }
 
-// ஃபைல்களைப் படிக்கும் ஃபங்ஷன்
 void load_files(const char *path) {
     DIR *dir = opendir(path);
     if (!dir) return;
     struct dirent *entry;
     file_count = 0;
+    window_start = 0; // புதிய ஃபோல்டருக்குப் போகும்போது வியூபோர்ட்டை ரீசெட் செய்ய
+    
     while ((entry = readdir(dir)) != NULL && file_count < MAX_FILES) {
         if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
         
@@ -51,21 +53,36 @@ void load_files(const char *path) {
     closedir(dir);
 }
 
-// திரையை வரையும் ஃபங்ஷன் (Fixed PWD Display)
 void draw_tree() {
+    // 1. டெர்மினலின் உயரத்தைக் (Rows) கண்டுபிடிக்கிறோம்
+    struct winsize w;
+    ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
+    int term_rows = w.ws_row;
+    
+    // Header மற்றும் Footer-க்காக கொஞ்சம் வரிகளை விட்டுவிடுகிறோம்
+    int max_display = term_rows - 7; 
+    if (max_display < 5) max_display = 5; // குறைந்தபட்சம் 5 வரிகளாவது காட்ட
+
+    // 2. Viewport Auto-Scroll Logic 
+    if (selected_idx < window_start) {
+        window_start = selected_idx; // மேலே சென்றால் வியூபோர்ட்டை மேலே நகர்த்து
+    } else if (selected_idx >= window_start + max_display) {
+        window_start = selected_idx - max_display + 1; // கீழே சென்றால் கீழே நகர்த்து
+    }
+
     char cwd[1024];
     if (getcwd(cwd, sizeof(cwd)) == NULL) {
         strcpy(cwd, "Unknown Path");
     }
 
-    printf("\033[2J\033[H"); // திரையை க்ளீன் செய்
+    printf("\033[2J\033[H"); 
     
-    // Header & PWD Display (கச்சிதமான கலர் ரீசெட்டுடன்)
     printf("\033[1;36m[ BDH Workspace: Interactive Tree ]\033[0m\r\n");
-    printf("\033[1;33m📍 PWD: %s\033[0m\r\n", cwd); // மஞ்சள் நிற PWD
+    printf("\033[1;33m📍 PWD: %s\033[0m\r\n", cwd); 
     printf("│\r\n");
     
-    for (int i = 0; i < file_count; i++) {
+    // 3. ஸ்க்ரோலிங் படியிலான பிரிண்டிங் (மொத்த ஃபைல்களையும் காட்டாமல்)
+    for (int i = window_start; i < file_count && i < window_start + max_display; i++) {
         if (i == selected_idx) {
             printf("\033[1;32m  > \033[7m"); 
         } else {
@@ -85,6 +102,14 @@ void draw_tree() {
         }
         printf("\r\n");
     }
+    
+    // ஒருவேளை இன்னும் ஃபைல்கள் இருந்தால் அதைக் குறிக்க
+    if (window_start + max_display < file_count) {
+        printf("    \033[1;30m... (%d more files)\033[0m\r\n", file_count - (window_start + max_display));
+    } else {
+        printf("│\r\n");
+    }
+
     printf("\r\n[UP/DOWN: Navigate] | [RIGHT/ENTER: Open] | [LEFT/BACKSPACE: Back] | [Q: Quit]\r\n");
 }
 
@@ -96,40 +121,36 @@ int main() {
         draw_tree();
         
         char c;
-        // ஒரு கீ அழுத்தப்படுகிறதா என்று படிக்கிறோம்
         if (read(STDIN_FILENO, &c, 1) == 1) {
-            
-            // 1. Arrow Keys (Escape Sequence) செக் செய்தல்
             if (c == '\033') { 
                 char seq[3];
                 if (read(STDIN_FILENO, &seq[0], 1) == 0) continue;
                 if (read(STDIN_FILENO, &seq[1], 1) == 0) continue;
 
                 if (seq[0] == '[') {
-                    if (seq[1] == 'A') { // Up Arrow
+                    if (seq[1] == 'A') { // Up
                         if (selected_idx > 0) selected_idx--;
                     } 
-                    else if (seq[1] == 'B') { // Down Arrow
+                    else if (seq[1] == 'B') { // Down
                         if (selected_idx < file_count - 1) selected_idx++;
                     }
-                    else if (seq[1] == 'C') { // Right Arrow (👉 ஃபோல்டருக்குள் செல்ல)
+                    else if (seq[1] == 'C') { // Right
                         if (files[selected_idx].is_dir) {
-                            chdir(files[selected_idx].name); // டைரக்டரியை மாற்று
-                            load_files("."); // புதிய ஃபைல்களைப் படி
+                            chdir(files[selected_idx].name);
+                            load_files(".");
                             selected_idx = 0;
                         }
                     }
-                    else if (seq[1] == 'D') { // Left Arrow (👈 பழைய ஃபோல்டருக்குத் திரும்ப)
-                        chdir(".."); // Parent Directory-க்கு செல்
+                    else if (seq[1] == 'D') { // Left
+                        chdir(".."); 
                         load_files(".");
                         selected_idx = 0;
                     }
                 }
             } 
-            // 2. சாதாரண பட்டன்கள் (q, Enter, j, k, Backspace)
             else {
                 if (c == 'q') {
-                    break; // Q அழுத்தினால் வெளியேற
+                    break; 
                 } 
                 else if (c == 'w' || c == 'k') { 
                     if (selected_idx > 0) selected_idx--;
@@ -138,19 +159,16 @@ int main() {
                     if (selected_idx < file_count - 1) selected_idx++;
                 } 
                 else if (c == 127 || c == 8 || c == 'b') { 
-                    // Backspace அல்லது 'b' அழுத்தினால் பின்னே வர (Go Back)
                     chdir("..");
                     load_files(".");
                     selected_idx = 0;
                 }
-                else if (c == '\n' || c == '\r') { // ENTER கீ
+                else if (c == '\n' || c == '\r') { 
                     if (files[selected_idx].is_dir) {
-                        // 📁 ஃபோல்டராக இருந்தால்: உள்ளே செல்ல வேண்டும் (Change Directory)
                         chdir(files[selected_idx].name);
-                        load_files("."); // புதிய ஃபோல்டரில் உள்ள ஃபைல்களை லோட் செய்கிறோம்
-                        selected_idx = 0; // கர்சரை மீண்டும் முதலில் வைக்கிறோம்
+                        load_files(".");
+                        selected_idx = 0; 
                     } else {
-                        // 📝 ஃபைலாக இருந்தால்: bdh-edit-ஐ ஓபன் செய்வது
                         disable_raw_mode(); 
                         printf("\033[2J\033[H"); 
                         
