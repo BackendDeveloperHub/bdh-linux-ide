@@ -1,3 +1,0 @@
-#!/bin/bash
-echo "Starting PostgreSQL shell..."
-sudo -iu postgres psql
