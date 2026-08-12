@@ -23,7 +23,7 @@ else
 fi
 
 # 1. Package Installation
-echo -e "\n\e[1;33m[1/4] Installing Required Packages...\e[0m"
+echo -e "\n\e[1;33m[1/3] Installing Required Packages...\e[0m"
 if [ "$IS_TERMUX" = true ]; then
     pkg update -y
     pkg install -y make clang git postgresql zsh fzf bat eza
@@ -36,7 +36,7 @@ else
 fi
 
 # 2. Clone & Build BDH Terminal Engine
-echo -e "\n\e[1;33m[2/4] Cloning & Building bdh-terminal-engine...\e[0m"
+echo -e "\n\e[1;33m[2/3] Cloning & Building bdh-terminal-engine...\e[0m"
 mkdir -p "$BUILD_TMP"
 cd "$BUILD_TMP" || exit 1
 rm -rf bdh-terminal-engine
@@ -50,47 +50,30 @@ cp -f bdh-engine "$INSTALL_DIR/bdh-terminal-engine"
 chmod 755 "$INSTALL_DIR/bdh-terminal-engine"
 echo -e "\e[1;32m  -> bdh-terminal-engine installed to $INSTALL_DIR!\e[0m"
 
-# 3. Compile & Install BDH-Tree (Using Saved REPO_DIR)
-echo -e "\n\e[1;33m[3/4] Compiling BDH-Tree...\e[0m"
-if [ -f "$REPO_DIR/bdh-tree.c" ]; then
-    CC_COMP_TOOL="gcc"
-    [ "$IS_TERMUX" = true ] && CC_COMP_TOOL="clang"
-    
-    $CC_COMP_TOOL "$REPO_DIR/bdh-tree.c" -o "$REPO_DIR/bdh-tree"
-    if [ -f "$REPO_DIR/bdh-tree" ]; then
-        cp -f "$REPO_DIR/bdh-tree" "$INSTALL_DIR/bdh-tree"
-        chmod +x "$INSTALL_DIR/bdh-tree"
-        echo -e "  -> bdh-tree compiled and installed!"
-    else
-        echo -e "\e[1;31m❌ BDH-Tree compilation failed!\e[0m"
-        exit 1
-    fi
+# 3. Compile & Install BDH-IDE (Modular C Project)
+echo -e "\n\e[1;33m[3/3] Compiling & Installing BDH-IDE Modular System...\e[0m"
+cd "$REPO_DIR" || exit 1
+
+# Makefile மூலமாக ப்ராஜெக்ட்டைக் கம்பைல் செய்கிறோம்
+if [ "$IS_TERMUX" = true ]; then
+    echo -e "  -> Running make (with clang for Termux)..."
+    make clean && make CC=clang || { echo -e "\e[1;31m❌ BDH-IDE compilation via Makefile failed!\e[0m"; exit 1; }
 else
-    echo -e "\e[1;31m❌ Error: bdh-tree.c not found at $REPO_DIR!\e[0m"
-    exit 1
+    echo -e "  -> Running make..."
+    make clean && make || { echo -e "\e[1;31m❌ BDH-IDE compilation via Makefile failed!\e[0m"; exit 1; }
 fi
 
-# 4. Compile & Install BDH-IDE Master Controller (Using Saved REPO_DIR)
-echo -e "\n\e[1;33m[4/4] Compiling & Installing BDH-IDE Master Controller...\e[0m"
-if [ -f "$REPO_DIR/bdh-ide.c" ]; then
-    CC_COMP_TOOL="gcc"
-    [ "$IS_TERMUX" = true ] && CC_COMP_TOOL="clang"
-    
-    $CC_COMP_TOOL "$REPO_DIR/bdh-ide.c" -o "$REPO_DIR/bdh-ide"
-    if [ -f "$REPO_DIR/bdh-ide" ]; then
-        cp -f "$REPO_DIR/bdh-ide" "$INSTALL_DIR/bdh-ide"
-        chmod +x "$INSTALL_DIR/bdh-ide"
-        echo -e "\e[1;32m✅ C-based BDH-IDE Master Controller installed successfully!\e[0m"
-    else
-        echo -e "\e[1;31m❌ BDH-IDE compilation failed!\e[0m"
-        exit 1
-    fi
+# கம்பைல் ஆன பைனரியை bin/ ஃபோல்டரில் இருந்து Install Directory-க்கு மாற்றுகிறோம்
+if [ -f "$REPO_DIR/bin/bdh-linux-ide" ]; then
+    cp -f "$REPO_DIR/bin/bdh-linux-ide" "$INSTALL_DIR/bdh-ide"
+    chmod +x "$INSTALL_DIR/bdh-ide"
+    echo -e "\e[1;32m✅ Modular C-based BDH-IDE installed successfully!\e[0m"
 else
-    echo -e "\e[1;31m❌ Error: bdh-ide.c not found at $REPO_DIR!\e[0m"
+    echo -e "\e[1;31m❌ Error: Compiled binary not found in bin/!\e[0m"
     exit 1
 fi
 
 echo -e "\n\e[1;32m---------------------------------------------------\e[0m"
-echo -e "✅ \e[1;32mBDH Ecosystem Setup Completed Successfully!\e[0m"
+echo -e "✅ \e[1;32mBDH Modular Ecosystem Setup Completed Successfully!\e[0m"
 echo -e "✅ \e[1;36mRun 'bdh-ide' to start your IDE!\e[0m"
 echo -e "---------------------------------------------------"
