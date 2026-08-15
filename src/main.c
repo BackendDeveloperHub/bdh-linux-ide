@@ -8,6 +8,26 @@
 #include "../include/bdh-edit.h"
 #include "../include/bdh-db.h" // புதிய DB மாட்யூல் இணைக்கப்பட்டுள்ளது
 
+// --- 🔥 ANTI-GLITCH DOUBLE BUFFERING MAGIC 🔥 ---
+struct abuf {
+    char *b;
+    int len;
+};
+#define ABUF_INIT {NULL, 0}
+
+static void abAppend(struct abuf *ab, const char *s, int len) {
+    char *new = realloc(ab->b, ab->len + len);
+    if (new == NULL) return;
+    memcpy(&new[ab->len], s, len);
+    ab->b = new;
+    ab->len += len;
+}
+
+static void abFree(struct abuf *ab) {
+    free(ab->b);
+}
+// -------------------------------------------------
+
 int focus = 0; // 0 = Tree, 1 = Editor, 2 = DB Console
 int total_rows, total_cols, divider_col;
 struct termios orig_termios;
@@ -41,23 +61,33 @@ void draw_ui() {
     char cwd[1024];
     if (getcwd(cwd, sizeof(cwd)) == NULL) strcpy(cwd, "Unknown");
 
-    printf("\033[2J\033[H"); 
+    struct abuf ab = ABUF_INIT;
+    char buf[2048];
+    int len;
+
+    // கர்சரை மறைத்து, ஸ்க்ரீனை க்ளியர் செய்கிறோம்
+    abAppend(&ab, "\033[?25l", 6);
+    abAppend(&ab, "\033[2J\033[H", 7); 
 
     // 1. செங்குத்து பார்டர் (Vertical Divider)
     for (int i = 1; i <= total_rows; i++) {
-        printf("\033[%d;%dH\033[1;30m│\033[0m", i, divider_col);
+        len = snprintf(buf, sizeof(buf), "\033[%d;%dH\033[1;30m│\033[0m", i, divider_col);
+        abAppend(&ab, buf, len);
     }
 
     // 2. Left Pane (TREE)
-    printf("\033[1;1H"); 
-    printf(focus == 0 ? "\033[1;42m[ BDH-TREE (ACTIVE) ]\033[0m\r\n" : "\033[1;37m[ BDH-TREE ]\033[0m\r\n");
+    len = snprintf(buf, sizeof(buf), "\033[1;1H%s\r\n", 
+                   focus == 0 ? "\033[1;42m[ BDH-TREE (ACTIVE) ]\033[0m" : "\033[1;37m[ BDH-TREE ]\033[0m");
+    abAppend(&ab, buf, len);
     
     char clipped_cwd[256];
     int max_pwd_width = divider_col - 8;
     if (max_pwd_width < 5) max_pwd_width = 5;
     strncpy(clipped_cwd, cwd, max_pwd_width);
     clipped_cwd[max_pwd_width] = '\0';
-    printf("\033[1;33m PWD: %s \033[0m\r\n\r\n", clipped_cwd);
+    
+    len = snprintf(buf, sizeof(buf), "\033[1;33m PWD: %s \033[0m\r\n\r\n", clipped_cwd);
+    abAppend(&ab, buf, len);
     
     int max_display = total_rows - 7; 
     if (max_display < 5) max_display = 5;
@@ -73,24 +103,33 @@ void draw_ui() {
         strncpy(display_name, files[i].name, max_name_len);
         display_name[max_name_len] = '\0';
 
-        if (i == selected_idx && focus == 0) printf("\033[1;32m  > \033[7m"); 
-        else printf("    ");
+        char row_buf[1024] = "";
+        
+        if (i == selected_idx && focus == 0) strcat(row_buf, "\033[1;32m  > \033[7m"); 
+        else strcat(row_buf, "    ");
 
-        if (files[i].is_dir) printf("\033[1;34m├── %s/\033[0m", display_name);
-        else printf("├── %s", display_name);
+        char temp[512];
+        if (files[i].is_dir) snprintf(temp, sizeof(temp), "\033[1;34m├── %s/\033[0m", display_name);
+        else snprintf(temp, sizeof(temp), "├── %s", display_name);
+        strcat(row_buf, temp);
 
-        if (i == selected_idx && focus == 0) printf("\033[0m");
+        if (i == selected_idx && focus == 0) strcat(row_buf, "\033[0m");
         
         int current_len = strlen(display_name) + 7; 
-        for (int spaces = current_len; spaces < divider_col; spaces++) printf(" ");
-        printf("\r\n");
+        for (int spaces = current_len; spaces < divider_col; spaces++) strcat(row_buf, " ");
+        strcat(row_buf, "\r\n");
+        
+        abAppend(&ab, row_buf, strlen(row_buf));
     }
 
     // 3. Right Pane (EDITOR or DB CONSOLE)
     if (focus == 0 || focus == 1) {
-        printf("\033[1;%dH", divider_col + 2); 
-        if (focus == 1) printf("\033[1;44m[ BDH-EDIT (ACTIVE) - File: %s ]\033[0m", current_file);
-        else printf("\033[1;37m[ BDH-EDIT - File: %s ]\033[0m", current_file);
+        len = snprintf(buf, sizeof(buf), "\033[1;%dH%s", divider_col + 2, 
+                       focus == 1 ? "\033[1;44m[ BDH-EDIT (ACTIVE) - File: " : "\033[1;37m[ BDH-EDIT - File: ");
+        abAppend(&ab, buf, len);
+        
+        len = snprintf(buf, sizeof(buf), "%s ]\033[0m", current_file);
+        abAppend(&ab, buf, len);
 
         int row = 3;
         int max_editor_width = total_cols - divider_col - 4;
@@ -102,31 +141,41 @@ void draw_ui() {
             char clipped_line[1024];
             strncpy(clipped_line, line, max_editor_width);
             clipped_line[max_editor_width] = '\0';
-            printf("\033[%d;%dH\033[0m%s", row, divider_col + 2, clipped_line);
+            
+            len = snprintf(buf, sizeof(buf), "\033[%d;%dH\033[0m%s", row, divider_col + 2, clipped_line);
+            abAppend(&ab, buf, len);
+            
             row++;
             line = strtok(NULL, "\n");
         }
         free(buf_copy);
     } 
     else if (focus == 2) {
-        // DB Console UI
-        printf("\033[1;%dH\033[1;45m[ BDH-DB CONSOLE (ACTIVE) - PostgreSQL ]\033[0m", divider_col + 2);
-        printf("\033[3;%dH\033[1;36mSQL > \033[0m%s", divider_col + 2, db_query_buf);
+        len = snprintf(buf, sizeof(buf), "\033[1;%dH\033[1;45m[ BDH-DB CONSOLE (ACTIVE) - PostgreSQL ]\033[0m", divider_col + 2);
+        abAppend(&ab, buf, len);
         
-        // கனெக்ஷன் ஸ்டேட்டஸைக் காட்ட
-        printf("\033[5;%dH\033[1;30mStatus: %s\033[0m", divider_col + 2, 
-            (db_conn != NULL) ? "\033[1;32mConnected\033[0m" : "\033[1;31mDisconnected\033[0m");
+        len = snprintf(buf, sizeof(buf), "\033[3;%dH\033[1;36mSQL > \033[0m%s", divider_col + 2, db_query_buf);
+        abAppend(&ab, buf, len);
+        
+        len = snprintf(buf, sizeof(buf), "\033[5;%dH\033[1;30mStatus: %s\033[0m", divider_col + 2, 
+                       (db_conn != NULL) ? "\033[1;32mConnected\033[0m" : "\033[1;31mDisconnected\033[0m");
+        abAppend(&ab, buf, len);
     }
 
     // 4. Footer
-    printf("\033[%d;1H\033[1;33m [TAB]: Switch Pane | [Ctrl+S]: Save | [Ctrl+P]: DB Console | [Q]/[ESC]: Quit \033[0m", total_rows);
+    len = snprintf(buf, sizeof(buf), "\033[%d;1H\033[1;33m [TAB]: Switch Pane | [Ctrl+S]: Save | [Ctrl+P]: DB Console | [Q]/[ESC]: Quit \033[0m\033[K", total_rows);
+    abAppend(&ab, buf, len);
 
     // கர்சரை நிலைநிறுத்துதல்
-    if (focus == 0) printf("\033[%d;6H", (selected_idx - window_start) + 4);
-    else if (focus == 1) printf("\033[3;%dH", divider_col + 2);
-    else if (focus == 2) printf("\033[3;%dH", divider_col + 8 + db_query_len); // DB ப்ராம்ப்ட்டில் கர்சர்
-    
-    fflush(stdout);
+    if (focus == 0) len = snprintf(buf, sizeof(buf), "\033[%d;6H", (selected_idx - window_start) + 4);
+    else if (focus == 1) len = snprintf(buf, sizeof(buf), "\033[3;%dH", divider_col + 2);
+    else if (focus == 2) len = snprintf(buf, sizeof(buf), "\033[3;%dH", divider_col + 8 + db_query_len);
+    abAppend(&ab, buf, len);
+
+    // கர்சரை மீண்டும் காண்பித்து மொத்தமாக ஸ்க்ரீனில் எழுதுகிறோம்!
+    abAppend(&ab, "\033[?25h", 6);
+    write(STDOUT_FILENO, ab.b, ab.len);
+    abFree(&ab);
 }
 
 int main() {
@@ -193,20 +242,16 @@ int main() {
                 }
                 else if (c == '\n' || c == '\r') { // Enter அழுத்தினால் குவரியை ரன் செய்ய
                     if (db_query_len > 0) {
-                        // DB அவுட்புட்டைப் பார்க்க தற்காலிகமாக Raw Mode-ஐ நிறுத்துகிறோம்
                         disable_raw_mode();
                         printf("\033[2J\033[H");
                         printf("\033[1;32m[BDH-DB] Executing Query:\033[0m %s\n\n", db_query_buf);
                         
-                        // bdh-db.c -ல் உள்ள ஃபங்ஷனை அழைத்தல்
                         db_execute_query(db_conn, db_query_buf);
                         
                         printf("\n\033[1;33m[Press ENTER to return to IDE Workspace...]\033[0m");
-                        getchar(); // யூசர் படிக்கும் வரை காத்திருக்க
+                        getchar(); 
                         
-                        enable_raw_mode(); // மீண்டும் IDE மோடுக்குத் திரும்புகிறோம்
-                        
-                        // குவரியை க்ளியர் செய்தல்
+                        enable_raw_mode(); 
                         db_query_len = 0;
                         db_query_buf[0] = '\0';
                     }
@@ -218,7 +263,6 @@ int main() {
         }
     }
     
-    // IDE மூடும்போது கனெக்ஷனை கட் செய்கிறோம்
     db_close(db_conn);
     printf("\033[2J\033[H");
     return 0;
