@@ -6,7 +6,7 @@
 #include <sys/ioctl.h>
 #include "../include/bdh-tree.h"
 #include "../include/bdh-edit.h"
-#include "../include/bdh-db.h" // புதிய DB மாட்யூல் இணைக்கப்பட்டுள்ளது
+#include "../include/bdh-db.h"
 
 // --- 🔥 ANTI-GLITCH DOUBLE BUFFERING MAGIC 🔥 ---
 struct abuf {
@@ -28,19 +28,21 @@ static void abFree(struct abuf *ab) {
 }
 // -------------------------------------------------
 
-int focus = 0; // 0 = Tree, 1 = Editor, 2 = DB Console
+int focus = 0; // 0 = Tree, 1 = Editor, 2 = DB Console, 3 = Terminal
 int total_rows, total_cols, divider_col;
 struct termios orig_termios;
 
-// DB Console-க்கான பிரத்யேக வேரியபிள்கள்
+// DB Console வேரியபிள்கள்
 char db_query_buf[1024] = "";
 int db_query_len = 0;
-PGconn *db_conn = NULL; // டேட்டாபேஸ் கனெக்ஷன்
+PGconn *db_conn = NULL; 
 
-void disable_raw_mode() {
-    tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
-}
+// Integrated Terminal வேரியபிள்கள்
+char term_cmd_buf[1024] = "";
+int term_cmd_len = 0;
+char term_output[2][1024] = {"", ""};
 
+void disable_raw_mode() { tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios); }
 void enable_raw_mode() {
     tcgetattr(STDIN_FILENO, &orig_termios);
     atexit(disable_raw_mode);
@@ -57,6 +59,25 @@ void get_terminal_size() {
     divider_col = total_cols / 3; 
 }
 
+// கமாண்டை ரன் செய்து அவுட்புட்டைப் பிடிக்கும் லாஜிக்
+void run_terminal_command() {
+    char sys_cmd[1200];
+    snprintf(sys_cmd, sizeof(sys_cmd), "%s > .bdh_term_out 2>&1", term_cmd_buf);
+    system(sys_cmd);
+
+    FILE *fp = fopen(".bdh_term_out", "r");
+    if (fp) {
+        char line[1024];
+        strcpy(term_output[0], ""); strcpy(term_output[1], "");
+        while (fgets(line, sizeof(line), fp)) {
+            line[strcspn(line, "\n")] = 0;
+            strcpy(term_output[0], term_output[1]);
+            strncpy(term_output[1], line, 1023);
+        }
+        fclose(fp);
+    }
+}
+
 void draw_ui() {
     char cwd[1024];
     if (getcwd(cwd, sizeof(cwd)) == NULL) strcpy(cwd, "Unknown");
@@ -69,13 +90,19 @@ void draw_ui() {
     abAppend(&ab, "\033[?25l", 6);
     abAppend(&ab, "\033[2J\033[H", 7); 
 
-    // 1. செங்குத்து பார்டர் (Vertical Divider)
-    for (int i = 1; i <= total_rows; i++) {
+    // 1. செங்குத்து பார்டர் (Tree-க்கும் Editor-க்கும் நடுவில், Terminal-க்கு மேலே வரை)
+    for (int i = 1; i <= total_rows - 6; i++) {
         len = snprintf(buf, sizeof(buf), "\033[%d;%dH\033[1;30m│\033[0m", i, divider_col);
         abAppend(&ab, buf, len);
     }
 
-    // 2. Left Pane (TREE)
+    // 2. கிடைமட்ட பார்டர் (Terminal-ஐப் பிரிக்க)
+    for (int i = 1; i <= total_cols; i++) {
+        len = snprintf(buf, sizeof(buf), "\033[%d;%dH\033[1;30m─\033[0m", total_rows - 5, i);
+        abAppend(&ab, buf, len);
+    }
+
+    // 3. Left Pane (TREE)
     len = snprintf(buf, sizeof(buf), "\033[1;1H%s\r\n", 
                    focus == 0 ? "\033[1;42m[ BDH-TREE (ACTIVE) ]\033[0m" : "\033[1;37m[ BDH-TREE ]\033[0m");
     abAppend(&ab, buf, len);
@@ -89,7 +116,7 @@ void draw_ui() {
     len = snprintf(buf, sizeof(buf), "\033[1;33m PWD: %s \033[0m\r\n\r\n", clipped_cwd);
     abAppend(&ab, buf, len);
     
-    int max_display = total_rows - 7; 
+    int max_display = total_rows - 10; 
     if (max_display < 5) max_display = 5;
 
     if (selected_idx < window_start) window_start = selected_idx;
@@ -104,7 +131,6 @@ void draw_ui() {
         display_name[max_name_len] = '\0';
 
         char row_buf[1024] = "";
-        
         if (i == selected_idx && focus == 0) strcat(row_buf, "\033[1;32m  > \033[7m"); 
         else strcat(row_buf, "    ");
 
@@ -118,17 +144,13 @@ void draw_ui() {
         int current_len = strlen(display_name) + 7; 
         for (int spaces = current_len; spaces < divider_col; spaces++) strcat(row_buf, " ");
         strcat(row_buf, "\r\n");
-        
         abAppend(&ab, row_buf, strlen(row_buf));
     }
 
-    // 3. Right Pane (EDITOR or DB CONSOLE)
-    if (focus == 0 || focus == 1) {
-        len = snprintf(buf, sizeof(buf), "\033[1;%dH%s", divider_col + 2, 
-                       focus == 1 ? "\033[1;44m[ BDH-EDIT (ACTIVE) - File: " : "\033[1;37m[ BDH-EDIT - File: ");
-        abAppend(&ab, buf, len);
-        
-        len = snprintf(buf, sizeof(buf), "%s ]\033[0m", current_file);
+    // 4. Right Pane (EDITOR or DB CONSOLE)
+    if (focus == 0 || focus == 1 || focus == 3) {
+        len = snprintf(buf, sizeof(buf), "\033[1;%dH%s%s ]\033[0m", divider_col + 2, 
+                       focus == 1 ? "\033[1;44m[ BDH-EDIT (ACTIVE) - File: " : "\033[1;37m[ BDH-EDIT - File: ", current_file);
         abAppend(&ab, buf, len);
 
         int row = 3;
@@ -137,21 +159,20 @@ void draw_ui() {
 
         char *buf_copy = strdup(editor_buf);
         char *line = strtok(buf_copy, "\n");
-        while (line != NULL && row < total_rows - 1) {
+        while (line != NULL && row <= total_rows - 6) {
             char clipped_line[1024];
             strncpy(clipped_line, line, max_editor_width);
             clipped_line[max_editor_width] = '\0';
             
-            len = snprintf(buf, sizeof(buf), "\033[%d;%dH\033[0m%s", row, divider_col + 2, clipped_line);
+            len = snprintf(buf, sizeof(buf), "\033[%d;%dH\033[0m%s\033[K", row, divider_col + 2, clipped_line);
             abAppend(&ab, buf, len);
-            
             row++;
             line = strtok(NULL, "\n");
         }
         free(buf_copy);
     } 
     else if (focus == 2) {
-        len = snprintf(buf, sizeof(buf), "\033[1;%dH\033[1;45m[ BDH-DB CONSOLE (ACTIVE) - PostgreSQL ]\033[0m", divider_col + 2);
+        len = snprintf(buf, sizeof(buf), "\033[1;%dH\033[1;45m[ BDH-DB CONSOLE (ACTIVE) ]\033[0m", divider_col + 2);
         abAppend(&ab, buf, len);
         
         len = snprintf(buf, sizeof(buf), "\033[3;%dH\033[1;36mSQL > \033[0m%s", divider_col + 2, db_query_buf);
@@ -162,14 +183,29 @@ void draw_ui() {
         abAppend(&ab, buf, len);
     }
 
-    // 4. Footer
-    len = snprintf(buf, sizeof(buf), "\033[%d;1H\033[1;33m [TAB]: Switch Pane | [Ctrl+S]: Save | [Ctrl+P]: DB Console | [Q]/[ESC]: Quit \033[0m\033[K", total_rows);
+    // 5. Bottom Pane (INTEGRATED TERMINAL - 5 Lines Space)
+    len = snprintf(buf, sizeof(buf), "\033[%d;1H%s PWD: %s\033[K", total_rows - 4,
+                   focus == 3 ? "\033[1;46m[ BDH-TERMINAL (ACTIVE) ]\033[0m" : "\033[1;37m[ BDH-TERMINAL ]\033[0m", cwd);
     abAppend(&ab, buf, len);
 
-    // கர்சரை நிலைநிறுத்துதல்
+    len = snprintf(buf, sizeof(buf), "\033[%d;1H\033[1;32m $\033[0m %s\033[K", total_rows - 3, term_cmd_buf);
+    abAppend(&ab, buf, len);
+
+    len = snprintf(buf, sizeof(buf), "\033[%d;1H\033[1;30m > \033[0m%s\033[K", total_rows - 2, term_output[0]);
+    abAppend(&ab, buf, len);
+
+    len = snprintf(buf, sizeof(buf), "\033[%d;1H\033[1;30m > \033[0m%s\033[K", total_rows - 1, term_output[1]);
+    abAppend(&ab, buf, len);
+
+    // 6. Footer
+    len = snprintf(buf, sizeof(buf), "\033[%d;1H\033[1;33m [TAB]: Switch | [Ctrl+T]: Terminal | [Ctrl+S]: Save | [Ctrl+P]: DB | [Q]/[ESC]: Quit \033[0m\033[K", total_rows);
+    abAppend(&ab, buf, len);
+
+    // Cursor Positioning
     if (focus == 0) len = snprintf(buf, sizeof(buf), "\033[%d;6H", (selected_idx - window_start) + 4);
     else if (focus == 1) len = snprintf(buf, sizeof(buf), "\033[3;%dH", divider_col + 2);
     else if (focus == 2) len = snprintf(buf, sizeof(buf), "\033[3;%dH", divider_col + 8 + db_query_len);
+    else if (focus == 3) len = snprintf(buf, sizeof(buf), "\033[%d;%dH", total_rows - 3, 4 + term_cmd_len);
     abAppend(&ab, buf, len);
 
     // கர்சரை மீண்டும் காண்பித்து மொத்தமாக ஸ்க்ரீனில் எழுதுகிறோம்!
@@ -181,10 +217,7 @@ void draw_ui() {
 int main() {
     get_terminal_size();
     load_files(".");
-    
-    // IDE தொடங்கும்போதே டேட்டாபேஸுடன் கனெக்ட் செய்கிறோம்
     db_conn = db_connect("dbname=postgres user=postgres");
-
     enable_raw_mode();
     draw_ui();
 
@@ -192,68 +225,39 @@ int main() {
         char c;
         if (read(STDIN_FILENO, &c, 1) == 1) {
             
-            // Pane Switching Logic (TAB பட்டன்)
-            if (c == 9) { 
-                focus = (focus == 0) ? 1 : 0; // Tree மற்றும் Editor-க்கு இடையே மட்டும் சுவிட்ச் செய்ய
-                draw_ui();
-                continue;
-            }
-            
-            // Ctrl + P (ASCII 16) -> DB Console-ஐ திறக்க
-            if (c == 16) {
-                focus = 2;
-                draw_ui();
-                continue;
-            }
+            if (c == 9) { focus = (focus == 0) ? 1 : 0; draw_ui(); continue; } // TAB
+            if (c == 16) { focus = 2; draw_ui(); continue; } // Ctrl+P
+            if (c == 20) { focus = 3; draw_ui(); continue; } // Ctrl+T
 
-            // Tree Active (Left)
             if (focus == 0) {
                 int status = handle_tree_input(c);
-                if (status == 0) { // Quit
-                    break;
-                } else if (status == 2) { // Open File
-                    load_file_to_editor(files[selected_idx].name);
-                    focus = 1; 
-                }
+                if (status == 0) break;
+                else if (status == 2) { load_file_to_editor(files[selected_idx].name); focus = 1; }
             } 
-            // Editor Active (Right)
             else if (focus == 1) {
-                int status = handle_editor_input(c);
-                if (status == 0) { // ESC 
-                    focus = 0; 
+                if (handle_editor_input(c) == 0) focus = 0; 
+            }
+            else if (focus == 2) {
+                if (c == '\033') focus = 0; 
+                else if (c == 127 || c == 8) { if (db_query_len > 0) db_query_buf[--db_query_len] = '\0'; }
+                else if (c >= 32 && c <= 126 && db_query_len < 1023) { db_query_buf[db_query_len++] = c; db_query_buf[db_query_len] = '\0'; }
+                else if (c == '\n' || c == '\r') {
+                    if (db_query_len > 0) {
+                        disable_raw_mode(); printf("\033[2J\033[H");
+                        db_execute_query(db_conn, db_query_buf);
+                        printf("\n\033[1;33m[Press ENTER to return...]\033[0m"); getchar();
+                        enable_raw_mode(); db_query_len = 0; db_query_buf[0] = '\0';
+                    }
                 }
             }
-            // DB Console Active (Right Pane)
-            else if (focus == 2) {
-                if (c == '\033') { 
-                    focus = 0; // ESC அழுத்தினால் Tree-க்கு திரும்பும்
-                }
-                else if (c == 127 || c == 8) { // Backspace
-                    if (db_query_len > 0) {
-                        db_query_len--;
-                        db_query_buf[db_query_len] = '\0';
-                    }
-                }
-                else if (c >= 32 && c <= 126) { // டைப்பிங்
-                    if (db_query_len < 1023) {
-                        db_query_buf[db_query_len++] = c;
-                        db_query_buf[db_query_len] = '\0';
-                    }
-                }
-                else if (c == '\n' || c == '\r') { // Enter அழுத்தினால் குவரியை ரன் செய்ய
-                    if (db_query_len > 0) {
-                        disable_raw_mode();
-                        printf("\033[2J\033[H");
-                        printf("\033[1;32m[BDH-DB] Executing Query:\033[0m %s\n\n", db_query_buf);
-                        
-                        db_execute_query(db_conn, db_query_buf);
-                        
-                        printf("\n\033[1;33m[Press ENTER to return to IDE Workspace...]\033[0m");
-                        getchar(); 
-                        
-                        enable_raw_mode(); 
-                        db_query_len = 0;
-                        db_query_buf[0] = '\0';
+            else if (focus == 3) {
+                if (c == '\033') focus = 0; 
+                else if (c == 127 || c == 8) { if (term_cmd_len > 0) term_cmd_buf[--term_cmd_len] = '\0'; }
+                else if (c >= 32 && c <= 126 && term_cmd_len < 1023) { term_cmd_buf[term_cmd_len++] = c; term_cmd_buf[term_cmd_len] = '\0'; }
+                else if (c == '\n' || c == '\r') {
+                    if (term_cmd_len > 0) {
+                        run_terminal_command(); 
+                        term_cmd_len = 0; term_cmd_buf[0] = '\0'; 
                     }
                 }
             }
@@ -264,6 +268,7 @@ int main() {
     }
     
     db_close(db_conn);
+    remove(".bdh_term_out");
     printf("\033[2J\033[H");
     return 0;
 }
