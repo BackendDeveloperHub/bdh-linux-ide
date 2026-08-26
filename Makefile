@@ -6,10 +6,11 @@ SRC_DIR = src
 OBJ_DIR = obj
 BIN_DIR = bin
 
-# ப்ராஜெக்ட்டில் உள்ள அனைத்து கோர் மாட்யூல்களும்
+# ப்ராஜெக்ட்டில் உள்ள அனைத்து கோர் மாட்யூல்களும் (UI மாட்யூலும் சேர்க்கப்பட்டுள்ளது)
 OBJS = $(OBJ_DIR)/bdh-tree.o \
        $(OBJ_DIR)/bdh-edit.o \
        $(OBJ_DIR)/bdh-db.o \
+       $(OBJ_DIR)/bdh-ui.o \
        $(OBJ_DIR)/main.o
 
 TARGET = $(BIN_DIR)/bdh-linux-ide
