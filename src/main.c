@@ -6,7 +6,7 @@
 #include <sys/ioctl.h>
 #include "../include/bdh-tree.h"
 #include "../include/bdh-edit.h"
-#include "../include/bdh-db.h"
+#include "../include/bdh-db.h" 
 
 // --- 🔥 ANTI-GLITCH DOUBLE BUFFERING MAGIC 🔥 ---
 struct abuf {
@@ -32,15 +32,15 @@ int focus = 0; // 0 = Tree, 1 = Editor, 2 = DB Console, 3 = Terminal
 int total_rows, total_cols, divider_col;
 struct termios orig_termios;
 
-// DB Console வேரியபிள்கள்
+// DB Console-க்கான பிரத்யேக வேரியபிள்கள்
 char db_query_buf[1024] = "";
 int db_query_len = 0;
 PGconn *db_conn = NULL; 
 
-// Integrated Terminal வேரியபிள்கள்
+// Integrated Terminal வேரியபிள்கள் (இப்போது 7 வரிகள் அவுட்புட்)
 char term_cmd_buf[1024] = "";
 int term_cmd_len = 0;
-char term_output[2][1024] = {"", ""};
+char term_output[7][1024] = {"", "", "", "", "", "", ""}; 
 
 void disable_raw_mode() { tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios); }
 void enable_raw_mode() {
@@ -59,7 +59,7 @@ void get_terminal_size() {
     divider_col = total_cols / 3; 
 }
 
-// கமாண்டை ரன் செய்து அவுட்புட்டைப் பிடிக்கும் லாஜிக்
+// கமாண்டை ரன் செய்து 7 லைன் அவுட்புட்டைப் பிடிக்கும் லாஜிக்
 void run_terminal_command() {
     char sys_cmd[1200];
     snprintf(sys_cmd, sizeof(sys_cmd), "%s > .bdh_term_out 2>&1", term_cmd_buf);
@@ -68,11 +68,15 @@ void run_terminal_command() {
     FILE *fp = fopen(".bdh_term_out", "r");
     if (fp) {
         char line[1024];
-        strcpy(term_output[0], ""); strcpy(term_output[1], "");
+        for (int i = 0; i < 7; i++) strcpy(term_output[i], ""); // பழையதை க்ளியர் செய்ய
+        
         while (fgets(line, sizeof(line), fp)) {
             line[strcspn(line, "\n")] = 0;
-            strcpy(term_output[0], term_output[1]);
-            strncpy(term_output[1], line, 1023);
+            // வரிகளை மேலே நகர்த்துகிறோம் (Shift up)
+            for (int i = 0; i < 6; i++) {
+                strcpy(term_output[i], term_output[i+1]);
+            }
+            strncpy(term_output[6], line, 1023);
         }
         fclose(fp);
     }
@@ -86,19 +90,18 @@ void draw_ui() {
     char buf[2048];
     int len;
 
-    // கர்சரை மறைத்து, ஸ்க்ரீனை க்ளியர் செய்கிறோம்
     abAppend(&ab, "\033[?25l", 6);
     abAppend(&ab, "\033[2J\033[H", 7); 
 
-    // 1. செங்குத்து பார்டர் (Tree-க்கும் Editor-க்கும் நடுவில், Terminal-க்கு மேலே வரை)
-    for (int i = 1; i <= total_rows - 6; i++) {
+    // 1. செங்குத்து பார்டர் (Terminal-க்கு மேலே வரை மட்டும்)
+    for (int i = 1; i <= total_rows - 11; i++) {
         len = snprintf(buf, sizeof(buf), "\033[%d;%dH\033[1;30m│\033[0m", i, divider_col);
         abAppend(&ab, buf, len);
     }
 
-    // 2. கிடைமட்ட பார்டர் (Terminal-ஐப் பிரிக்க)
+    // 2. கிடைமட்ட பார்டர் (10 லைன் Terminal-ஐப் பிரிக்க)
     for (int i = 1; i <= total_cols; i++) {
-        len = snprintf(buf, sizeof(buf), "\033[%d;%dH\033[1;30m─\033[0m", total_rows - 5, i);
+        len = snprintf(buf, sizeof(buf), "\033[%d;%dH\033[1;30m─\033[0m", total_rows - 10, i);
         abAppend(&ab, buf, len);
     }
 
@@ -116,7 +119,7 @@ void draw_ui() {
     len = snprintf(buf, sizeof(buf), "\033[1;33m PWD: %s \033[0m\r\n\r\n", clipped_cwd);
     abAppend(&ab, buf, len);
     
-    int max_display = total_rows - 10; 
+    int max_display = total_rows - 14; // 10 லைன் டெர்மினலுக்காக அட்ஜஸ்ட் செய்யப்பட்டது
     if (max_display < 5) max_display = 5;
 
     if (selected_idx < window_start) window_start = selected_idx;
@@ -159,7 +162,7 @@ void draw_ui() {
 
         char *buf_copy = strdup(editor_buf);
         char *line = strtok(buf_copy, "\n");
-        while (line != NULL && row <= total_rows - 6) {
+        while (line != NULL && row <= total_rows - 11) { // 10 லைன் டெர்மினலுக்காக அட்ஜஸ்ட் செய்யப்பட்டது
             char clipped_line[1024];
             strncpy(clipped_line, line, max_editor_width);
             clipped_line[max_editor_width] = '\0';
@@ -172,7 +175,7 @@ void draw_ui() {
         free(buf_copy);
     } 
     else if (focus == 2) {
-        len = snprintf(buf, sizeof(buf), "\033[1;%dH\033[1;45m[ BDH-DB CONSOLE (ACTIVE) ]\033[0m", divider_col + 2);
+        len = snprintf(buf, sizeof(buf), "\033[1;%dH\033[1;45m[ BDH-DB CONSOLE (ACTIVE) - PostgreSQL ]\033[0m", divider_col + 2);
         abAppend(&ab, buf, len);
         
         len = snprintf(buf, sizeof(buf), "\033[3;%dH\033[1;36mSQL > \033[0m%s", divider_col + 2, db_query_buf);
@@ -183,32 +186,31 @@ void draw_ui() {
         abAppend(&ab, buf, len);
     }
 
-    // 5. Bottom Pane (INTEGRATED TERMINAL - 5 Lines Space)
-    len = snprintf(buf, sizeof(buf), "\033[%d;1H%s PWD: %s\033[K", total_rows - 4,
+    // 5. Bottom Pane (INTEGRATED TERMINAL - 10 Lines Space)
+    len = snprintf(buf, sizeof(buf), "\033[%d;1H%s PWD: %s\033[K", total_rows - 9,
                    focus == 3 ? "\033[1;46m[ BDH-TERMINAL (ACTIVE) ]\033[0m" : "\033[1;37m[ BDH-TERMINAL ]\033[0m", cwd);
     abAppend(&ab, buf, len);
 
-    len = snprintf(buf, sizeof(buf), "\033[%d;1H\033[1;32m $\033[0m %s\033[K", total_rows - 3, term_cmd_buf);
+    len = snprintf(buf, sizeof(buf), "\033[%d;1H\033[1;32m $\033[0m %s\033[K", total_rows - 8, term_cmd_buf);
     abAppend(&ab, buf, len);
 
-    len = snprintf(buf, sizeof(buf), "\033[%d;1H\033[1;30m > \033[0m%s\033[K", total_rows - 2, term_output[0]);
-    abAppend(&ab, buf, len);
-
-    len = snprintf(buf, sizeof(buf), "\033[%d;1H\033[1;30m > \033[0m%s\033[K", total_rows - 1, term_output[1]);
-    abAppend(&ab, buf, len);
+    // 7 வரிகள் அவுட்புட் பிரிண்ட் ஆகிறது
+    for (int i = 0; i < 7; i++) {
+        len = snprintf(buf, sizeof(buf), "\033[%d;1H\033[1;30m > \033[0m%s\033[K", total_rows - 7 + i, term_output[i]);
+        abAppend(&ab, buf, len);
+    }
 
     // 6. Footer
-    len = snprintf(buf, sizeof(buf), "\033[%d;1H\033[1;33m [TAB]: Switch | [Ctrl+T]: Terminal | [Ctrl+S]: Save | [Ctrl+P]: DB | [Q]/[ESC]: Quit \033[0m\033[K", total_rows);
+    len = snprintf(buf, sizeof(buf), "\033[%d;1H\033[1;33m [TAB]: Switch Pane | [Ctrl+T]: Terminal | [Ctrl+S]: Save | [Ctrl+P]: DB | [Q]/[ESC]: Quit \033[0m\033[K", total_rows);
     abAppend(&ab, buf, len);
 
-    // Cursor Positioning
+    // கர்சரை நிலைநிறுத்துதல்
     if (focus == 0) len = snprintf(buf, sizeof(buf), "\033[%d;6H", (selected_idx - window_start) + 4);
     else if (focus == 1) len = snprintf(buf, sizeof(buf), "\033[3;%dH", divider_col + 2);
     else if (focus == 2) len = snprintf(buf, sizeof(buf), "\033[3;%dH", divider_col + 8 + db_query_len);
-    else if (focus == 3) len = snprintf(buf, sizeof(buf), "\033[%d;%dH", total_rows - 3, 4 + term_cmd_len);
+    else if (focus == 3) len = snprintf(buf, sizeof(buf), "\033[%d;%dH", total_rows - 8, 4 + term_cmd_len);
     abAppend(&ab, buf, len);
 
-    // கர்சரை மீண்டும் காண்பித்து மொத்தமாக ஸ்க்ரீனில் எழுதுகிறோம்!
     abAppend(&ab, "\033[?25h", 6);
     write(STDOUT_FILENO, ab.b, ab.len);
     abFree(&ab);
@@ -225,7 +227,15 @@ int main() {
         char c;
         if (read(STDIN_FILENO, &c, 1) == 1) {
             
-            if (c == 9) { focus = (focus == 0) ? 1 : 0; draw_ui(); continue; } // TAB
+            // 🔥 TAB Cycle Logic: Tree -> Editor -> Terminal -> Tree 🔥
+            if (c == 9) { 
+                if (focus == 0) focus = 1;
+                else if (focus == 1) focus = 3;
+                else focus = 0; 
+                draw_ui(); 
+                continue; 
+            }
+            
             if (c == 16) { focus = 2; draw_ui(); continue; } // Ctrl+P
             if (c == 20) { focus = 3; draw_ui(); continue; } // Ctrl+T
 
