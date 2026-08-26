@@ -106,14 +106,31 @@ int main() {
                     }
                 }
             }
+            // --- 3. TERMINAL ---
             else if (focus == 3) {
                 if (c == '\033') focus = 0; 
                 else if (c == 127 || c == 8) { if (term_cmd_len > 0) term_cmd_buf[--term_cmd_len] = '\0'; }
                 else if (c >= 32 && c <= 126 && term_cmd_len < 1023) { term_cmd_buf[term_cmd_len++] = c; term_cmd_buf[term_cmd_len] = '\0'; }
                 else if (c == '\n' || c == '\r') {
                     if (term_cmd_len > 0) {
-                        run_terminal_command(); 
+                        
+                        // --- 🔥 CD Command Handle 🔥 ---
+                        if (strncmp(term_cmd_buf, "cd ", 3) == 0) {
+                            if (chdir(term_cmd_buf + 3) != 0) {
+                                // Directory மாறவில்லை என்றால் எரர் மெசேஜைக் காட்ட
+                                strcpy(term_output[6], "Directory not found!");
+                            } else {
+                                strcpy(term_output[6], "Changed directory successfully.");
+                            }
+                        } else {
+                            run_terminal_command(); // மற்ற எல்லா கமாண்டுகளுக்கும்
+                        }
+                        
                         term_cmd_len = 0; term_cmd_buf[0] = '\0'; 
+                        
+                        // --- 🔥 AUTO-REFRESH TREE 🔥 ---
+                        // புது ஃபைல்/ஃபோல்டர் உருவாக்கினால் உடனே Tree-யில் அப்டேட் ஆக
+                        load_files("."); 
                     }
                 }
             }
