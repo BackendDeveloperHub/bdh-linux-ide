@@ -79,6 +79,13 @@ int main() {
             if (c == 20) { focus = 3; draw_ui(); continue; } // Ctrl+T
 
             if (focus == 0) {
+                // --- 🔥 Dynamic Resize Shortcuts 🔥 ---
+                if (c == '+') { if (term_height < total_rows - 8) term_height++; draw_ui(); continue; }
+                if (c == '-') { if (term_height > 5) term_height--; draw_ui(); continue; }
+                if (c == '>') { if (tree_width_ratio < 0.8) tree_width_ratio += 0.05; get_terminal_size(); draw_ui(); continue; }
+                if (c == '<') { if (tree_width_ratio > 0.15) tree_width_ratio -= 0.05; get_terminal_size(); draw_ui(); continue; }
+                // ---------------------------------------
+
                 int status = handle_tree_input(c);
                 if (status == 0) break;
                 else if (status == 2) { load_file_to_editor(files[selected_idx].name); focus = 1; }
