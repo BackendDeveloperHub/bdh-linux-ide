@@ -23,7 +23,7 @@ else
 fi
 
 # 1. Package Installation
-echo -e "\n\e[1;33m[1/3] Installing Required Packages...\e[0m"
+echo -e "\n\e[1;33m[1/4] Installing Required Packages...\e[0m"
 if [ "$IS_TERMUX" = true ]; then
     pkg update -y
     pkg install -y make clang git postgresql zsh fzf bat eza
@@ -36,7 +36,7 @@ else
 fi
 
 # 2. Clone & Build BDH Terminal Engine
-echo -e "\n\e[1;33m[2/3] Cloning & Building bdh-terminal-engine...\e[0m"
+echo -e "\n\e[1;33m[2/4] Cloning & Building bdh-terminal-engine...\e[0m"
 mkdir -p "$BUILD_TMP"
 cd "$BUILD_TMP" || exit 1
 rm -rf bdh-terminal-engine
@@ -51,7 +51,7 @@ chmod 755 "$INSTALL_DIR/bdh-terminal-engine"
 echo -e "\e[1;32m  -> bdh-terminal-engine installed to $INSTALL_DIR!\e[0m"
 
 # 3. Compile & Install BDH-IDE (Modular C Project)
-echo -e "\n\e[1;33m[3/3] Compiling & Installing BDH-IDE Modular System...\e[0m"
+echo -e "\n\e[1;33m[3/4] Compiling & Installing BDH-IDE Modular System...\e[0m"
 cd "$REPO_DIR" || exit 1
 
 # Makefile மூலமாக ப்ராஜெக்ட்டைக் கம்பைல் செய்கிறோம்
@@ -73,7 +73,18 @@ else
     exit 1
 fi
 
+# 4. Install BDH Screen Recorder (bdh-record)
+echo -e "\n\e[1;33m[4/4] Installing BDH Terminal Recorder...\e[0m"
+if [ -f "$REPO_DIR/bdh-record" ]; then
+    cp -f "$REPO_DIR/bdh-record" "$INSTALL_DIR/bdh-record"
+    chmod +x "$INSTALL_DIR/bdh-record"
+    echo -e "\e[1;32m✅ bdh-record installed successfully!\e[0m"
+else
+    echo -e "\e[1;33m⚠️ Warning: bdh-record script not found in repository. Skipping.\e[0m"
+fi
+
 echo -e "\n\e[1;32m---------------------------------------------------\e[0m"
 echo -e "✅ \e[1;32mBDH Modular Ecosystem Setup Completed Successfully!\e[0m"
 echo -e "✅ \e[1;36mRun 'bdh-ide' to start your IDE!\e[0m"
+echo -e "✅ \e[1;36mRun 'bdh-record' to record your sessions!\e[0m"
 echo -e "---------------------------------------------------"
