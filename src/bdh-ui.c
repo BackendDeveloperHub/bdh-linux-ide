@@ -181,10 +181,20 @@ void draw_ui() {
     abAppend(&ab, "\033[?7h", 5); 
     abAppend(&ab, "\033[?25h", 6); 
 
-    if (focus == 0) len = snprintf(buf, sizeof(buf), "\033[%d;6H", (selected_idx - window_start) + 4);
-    else if (focus == 1) len = snprintf(buf, sizeof(buf), "\033[%d;%dH", 3 + editor_cy, divider_col + 2 + 6 + editor_cx); 
-    else if (focus == 2) len = snprintf(buf, sizeof(buf), "\033[3;%dH", divider_col + 8 + db_query_len);
-    else if (focus == 3) len = snprintf(buf, sizeof(buf), "\033[%d;%dH", total_rows - term_height + 3, 4 + term_cmd_len);
+    // 🔥 EDITOR CURSOR FIX: கர்சர் எல்லையை மீறாமல் பார்த்துக் கொள்ளும் லாஜிக்
+    if (focus == 0) {
+        len = snprintf(buf, sizeof(buf), "\033[%d;6H", (selected_idx - window_start) + 4);
+    } else if (focus == 1) {
+        int cursor_row = 3 + editor_cy;
+        if (cursor_row > total_rows - term_height) {
+            cursor_row = total_rows - term_height;
+        }
+        len = snprintf(buf, sizeof(buf), "\033[%d;%dH", cursor_row, divider_col + 8 + editor_cx); 
+    } else if (focus == 2) {
+        len = snprintf(buf, sizeof(buf), "\033[3;%dH", divider_col + 8 + db_query_len);
+    } else if (focus == 3) {
+        len = snprintf(buf, sizeof(buf), "\033[%d;%dH", total_rows - term_height + 3, 4 + term_cmd_len);
+    }
     
     abAppend(&ab, buf, len);
 
