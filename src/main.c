@@ -19,7 +19,6 @@ PGconn *db_conn = NULL;
 
 char term_cmd_buf[1024] = "";
 int term_cmd_len = 0;
-// 🔥 50 Lines Storage
 char term_output[50][1024]; 
 
 void disable_raw_mode() { tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios); }
@@ -50,7 +49,6 @@ void run_terminal_command() {
         for (int i = 0; i < 50; i++) strcpy(term_output[i], ""); 
         while (fgets(line, sizeof(line), fp)) {
             line[strcspn(line, "\n")] = 0;
-            // 50 வரிகளை மேலே ஷிஃப்ட் செய்தல்
             for (int i = 0; i < 49; i++) strcpy(term_output[i], term_output[i+1]);
             strncpy(term_output[49], line, 1023);
         }
@@ -59,14 +57,16 @@ void run_terminal_command() {
 }
 
 int main() {
-    // Array Initialization
     for (int i = 0; i < 50; i++) strcpy(term_output[i], ""); 
 
     get_terminal_size();
     load_files(".");
     db_conn = db_connect("dbname=postgres user=postgres");
     
-    printf("\033[?1000h\033[?1006h"); 
+    // 🔥 GLITCH FIX 1: Alternate Screen Buffer (1049h)
+    printf("\033[?1049h\033[?1000h\033[?1006h"); 
+    fflush(stdout);
+
     enable_raw_mode();
     draw_ui();
 
@@ -74,7 +74,6 @@ int main() {
         char c;
         if (read(STDIN_FILENO, &c, 1) == 1) {
             
-            // 🔥 Strict TAB Logic (Tree -> Editor -> Terminal -> Tree)
             if (c == 9) { 
                 if (focus == 0) focus = 1;
                 else if (focus == 1) focus = 3;
@@ -103,7 +102,8 @@ int main() {
                 else if (c >= 32 && c <= 126 && db_query_len < 1023) { db_query_buf[db_query_len++] = c; db_query_buf[db_query_len] = '\0'; }
                 else if (c == '\n' || c == '\r') {
                     if (db_query_len > 0) {
-                        disable_raw_mode(); printf("\033[2J\033[H");
+                        disable_raw_mode(); 
+                        printf("\033[2J\033[H");
                         db_execute_query(db_conn, db_query_buf);
                         printf("\n\033[1;33m[Press ENTER to return...]\033[0m"); getchar();
                         enable_raw_mode(); db_query_len = 0; db_query_buf[0] = '\0';
@@ -116,7 +116,6 @@ int main() {
                 else if (c >= 32 && c <= 126 && term_cmd_len < 1023) { term_cmd_buf[term_cmd_len++] = c; term_cmd_buf[term_cmd_len] = '\0'; }
                 else if (c == '\n' || c == '\r') {
                     if (term_cmd_len > 0) {
-                        
                         if (strncmp(term_cmd_buf, "cd ", 3) == 0) {
                             if (chdir(term_cmd_buf + 3) != 0) {
                                 strcpy(term_output[49], "Directory not found!");
@@ -126,7 +125,6 @@ int main() {
                         } else {
                             run_terminal_command(); 
                         }
-                        
                         term_cmd_len = 0; term_cmd_buf[0] = '\0'; 
                         load_files("."); 
                     }
@@ -140,7 +138,9 @@ int main() {
     
     db_close(db_conn);
     remove(".bdh_term_out");
-    printf("\033[?1000l\033[?1006l"); 
-    printf("\033[2J\033[H");
+    
+    // 🔥 GLITCH FIX 1: Exit Alternate Screen safely
+    printf("\033[?1049l\033[?1000l\033[?1006l"); 
+    fflush(stdout);
     return 0;
 }
