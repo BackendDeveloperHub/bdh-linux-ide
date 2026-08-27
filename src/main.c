@@ -116,15 +116,23 @@ int main() {
                 else if (c >= 32 && c <= 126 && term_cmd_len < 1023) { term_cmd_buf[term_cmd_len++] = c; term_cmd_buf[term_cmd_len] = '\0'; }
                 else if (c == '\n' || c == '\r') {
                     if (term_cmd_len > 0) {
-                        if (strncmp(term_cmd_buf, "cd ", 3) == 0) {
+                        // 🔥 CLEAR கமாண்டை நாமே கையாளுதல்
+                        if (strcmp(term_cmd_buf, "clear") == 0) {
+                            for (int i = 0; i < 50; i++) strcpy(term_output[i], "");
+                        } 
+                        // 🔥 CD கமாண்ட் லாஜிக்
+                        else if (strncmp(term_cmd_buf, "cd ", 3) == 0) {
                             if (chdir(term_cmd_buf + 3) != 0) {
                                 strcpy(term_output[49], "Directory not found!");
                             } else {
                                 strcpy(term_output[49], "Changed directory successfully.");
                             }
-                        } else {
+                        } 
+                        // 🔥 மற்ற கமாண்டுகள்
+                        else {
                             run_terminal_command(); 
                         }
+                        
                         term_cmd_len = 0; term_cmd_buf[0] = '\0'; 
                         load_files("."); 
                     }
