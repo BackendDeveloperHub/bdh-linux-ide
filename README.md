@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🚀 BDH Linux IDE
+# BDH Linux IDE
 
 ### A 100% Custom, Terminal-Based Code Editor Environment for Arch & Manjaro Linux
 
@@ -17,18 +17,18 @@ BDH Linux IDE is a powerful, minimal, terminal-exclusive code workspace. Moving 
 
 ---
 
-## 🤔 Why BDH IDE? (The Core Philosophy)
+##  Why BDH IDE? (The Core Philosophy)
 
 Most modern editors ship with auto-complete, GUI bloat, and AI assistance baked in. BDH IDE takes a different, hardcore approach:
 
-- ⚡ **100% Custom Native C Architecture** — No Tmux, no Ranger, no Nano. We built the tree navigator and the editor from the ground up for maximum speed and zero dependencies.
-- 💪 **Muscle Memory** — No auto-complete. You type every bracket and semicolon yourself, embedding syntax deeply into your muscle memory.
-- 🧠 **Real Problem Solving** — Debug your own errors without hand-holding, building true problem-solving skills.
-- 🔥 **Zero Bloat** — Consumes almost zero system resources, running perfectly on anything from a heavy desktop to a headless server or Android Termux.
+-  **100% Custom Native C Architecture** — No Tmux, no Ranger, no Nano. We built the tree navigator and the editor from the ground up for maximum speed and zero dependencies.
+- **Muscle Memory** — No auto-complete. You type every bracket and semicolon yourself, embedding syntax deeply into your muscle memory.
+-  **Real Problem Solving** — Debug your own errors without hand-holding, building true problem-solving skills.
+-  **Zero Bloat** — Consumes almost zero system resources, running perfectly on anything from a heavy desktop to a headless server or Android Termux.
 
 ---
 
-## ⚙️ The BDH Custom Engine (Core Features)
+##  The BDH Custom Engine (Core Features)
 
 Instead of stitching together existing tools, BDH IDE utilizes its own modular C binaries:
 
@@ -39,7 +39,7 @@ Instead of stitching together existing tools, BDH IDE utilizes its own modular C
 
 ---
 
-## 🧰 The Extended Tool Suite
+##  The Extended Tool Suite
 
 BDH IDE isn't just an editor; it comes packed with a powerful suite of terminal utilities:
 
@@ -51,7 +51,7 @@ BDH IDE isn't just an editor; it comes packed with a powerful suite of terminal 
 
 ---
 
-## 📋 Prerequisites
+##  Prerequisites
 
 - **Arch Linux** or **Manjaro Linux** (or any Arch-based distro) / **Termux (Android)**
 - `gcc`, `make`, `git` (Core build tools)
@@ -59,7 +59,7 @@ BDH IDE isn't just an editor; it comes packed with a powerful suite of terminal 
 
 ---
 
-## 📦 Installation
+## Installation
 
 ### Method 1: Install via AUR (Recommended for Arch)
 
@@ -82,7 +82,7 @@ sudo ./install.sh
 
 ---
 
-## 🚀 Usage
+##  Usage
 
 To launch the split-screen editor environment, simply type:
 
@@ -92,7 +92,7 @@ bdh-ide
 
 ---
 
-## ⌨️ Keyboard Controls (IDE)
+##  Keyboard Controls (IDE)
 
 | Key | Action |
 | :--- | :--- |
@@ -108,7 +108,7 @@ bdh-ide
 
 ---
 
-## 📂 Repository Structure
+##  Repository Structure
 
 ```
 bdh-linux-ide/
@@ -127,21 +127,21 @@ bdh-linux-ide/
 
 ---
 
-## 🤝 Contributing
+##  Contributing
 
 Contributions, issues, and feature requests are always welcome! This project thrives on the open-source community. Feel free to check the [issues page](https://github.com/BackendDeveloperHub/bdh-linux-ide/issues) if you want to contribute.
 
 ---
 
-## 📜 License
+##  License
 
 Distributed under the GNU General Public License v3.0. See the [LICENSE](LICENSE) file for more information.
 
 ---
 
-## 👨‍💻 Author & Architecture
+##  Author & Architecture
 
 **Prabakaran P** (Backend Developer Hub)
 *Systems Architecture & Low-Level C Implementation*
 
-> "Master the terminal, master the code." 🚀
+> "Master the terminal, master the code." 
