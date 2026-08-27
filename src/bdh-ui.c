@@ -38,8 +38,10 @@ void draw_ui() {
     char buf[2048];
     int len;
 
-    abAppend(&ab, "\033[?25l", 6);
-    abAppend(&ab, "\033[2J\033[H", 7); 
+    abAppend(&ab, "\033[?25l", 6); // கர்சரை மறைக்கிறோம்
+    
+    // 🔥 GLITCH FIX: 2J-ஐ நீக்கிவிட்டு H (Home) மட்டும் பயன்படுத்துகிறோம். 
+    abAppend(&ab, "\033[H", 3); 
 
     // 1. செங்குத்து பார்டர் & பட்டன்கள் [<] [>]
     for (int i = 1; i <= total_rows - term_height; i++) {
@@ -60,7 +62,8 @@ void draw_ui() {
     abAppend(&ab, buf, len);
 
     // 3. Left Pane (TREE)
-    len = snprintf(buf, sizeof(buf), "\033[1;1H%s\r\n", 
+    // 🔥 \033[K சேர்க்கப்பட்டுள்ளது (பழைய வரிகளை அழிக்க)
+    len = snprintf(buf, sizeof(buf), "\033[1;1H%s\033[K\r\n", 
                    focus == 0 ? "\033[1;42m[ BDH-TREE (ACTIVE) ]\033[0m" : "\033[1;37m[ BDH-TREE ]\033[0m");
     abAppend(&ab, buf, len);
     
@@ -70,7 +73,7 @@ void draw_ui() {
     strncpy(clipped_cwd, cwd, max_pwd_width);
     clipped_cwd[max_pwd_width] = '\0';
     
-    len = snprintf(buf, sizeof(buf), "\033[1;33m PWD: %s \033[0m\r\n\r\n", clipped_cwd);
+    len = snprintf(buf, sizeof(buf), "\033[1;33m PWD: %s \033[0m\033[K\r\n\r\n", clipped_cwd);
     abAppend(&ab, buf, len);
     
     int max_display = total_rows - term_height - 4; 
@@ -100,13 +103,15 @@ void draw_ui() {
         
         int current_len = strlen(display_name) + 7; 
         for (int spaces = current_len; spaces < divider_col; spaces++) strcat(row_buf, " ");
-        strcat(row_buf, "\r\n");
+        
+        // 🔥 \033[K சேர்க்கப்பட்டுள்ளது
+        strcat(row_buf, "\033[K\r\n");
         abAppend(&ab, row_buf, strlen(row_buf));
     }
 
     // 4. Right Pane (EDITOR or DB CONSOLE)
     if (focus == 0 || focus == 1 || focus == 3) {
-        len = snprintf(buf, sizeof(buf), "\033[1;%dH%s%s ]\033[0m", divider_col + 2, 
+        len = snprintf(buf, sizeof(buf), "\033[1;%dH%s%s ]\033[0m\033[K", divider_col + 2, 
                        focus == 1 ? "\033[1;44m[ BDH-EDIT (ACTIVE) - File: " : "\033[1;37m[ BDH-EDIT - File: ", current_file);
         abAppend(&ab, buf, len);
 
@@ -129,13 +134,14 @@ void draw_ui() {
         free(buf_copy);
     } 
     else if (focus == 2) {
-        len = snprintf(buf, sizeof(buf), "\033[1;%dH\033[1;45m[ BDH-DB CONSOLE (ACTIVE) - PostgreSQL ]\033[0m", divider_col + 2);
+        // 🔥 \033[K சேர்க்கப்பட்டுள்ளது
+        len = snprintf(buf, sizeof(buf), "\033[1;%dH\033[1;45m[ BDH-DB CONSOLE (ACTIVE) - PostgreSQL ]\033[0m\033[K", divider_col + 2);
         abAppend(&ab, buf, len);
         
-        len = snprintf(buf, sizeof(buf), "\033[3;%dH\033[1;36mSQL > \033[0m%s", divider_col + 2, db_query_buf);
+        len = snprintf(buf, sizeof(buf), "\033[3;%dH\033[1;36mSQL > \033[0m%s\033[K", divider_col + 2, db_query_buf);
         abAppend(&ab, buf, len);
         
-        len = snprintf(buf, sizeof(buf), "\033[5;%dH\033[1;30mStatus: %s\033[0m", divider_col + 2, 
+        len = snprintf(buf, sizeof(buf), "\033[5;%dH\033[1;30mStatus: %s\033[0m\033[K", divider_col + 2, 
                        (db_conn != NULL) ? "\033[1;32mConnected\033[0m" : "\033[1;31mDisconnected\033[0m");
         abAppend(&ab, buf, len);
     }
@@ -148,7 +154,6 @@ void draw_ui() {
     len = snprintf(buf, sizeof(buf), "\033[%d;1H\033[1;32m $\033[0m %s\033[K", total_rows - term_height + 3, term_cmd_buf);
     abAppend(&ab, buf, len);
 
-    // 🔥 50 Lines Output Storage Rendering (Dynamic)
     int max_out_lines = term_height - 4;
     if (max_out_lines > 50) max_out_lines = 50;
     
@@ -162,14 +167,16 @@ void draw_ui() {
     len = snprintf(buf, sizeof(buf), "\033[%d;1H\033[1;33m [TAB]: Switch Pane | [Ctrl+T]: Terminal | [Ctrl+S]: Save | [Ctrl+P]: DB | [Q]/[ESC]: Quit \033[0m\033[K", total_rows);
     abAppend(&ab, buf, len);
 
-    // 🔥 Dynamic Cursor Positioning (Fix for Editor Cursor visibility)
+    // 🔥 CURSOR FIX: கர்சரை பொசிஷன் செய்வதற்கு முன்பு, அதை On செய்ய வேண்டும்!
+    abAppend(&ab, "\033[?25h", 6); 
+
     if (focus == 0) len = snprintf(buf, sizeof(buf), "\033[%d;6H", (selected_idx - window_start) + 4);
     else if (focus == 1) len = snprintf(buf, sizeof(buf), "\033[%d;%dH", 3 + editor_cy, divider_col + 2 + editor_cx); 
     else if (focus == 2) len = snprintf(buf, sizeof(buf), "\033[3;%dH", divider_col + 8 + db_query_len);
     else if (focus == 3) len = snprintf(buf, sizeof(buf), "\033[%d;%dH", total_rows - term_height + 3, 4 + term_cmd_len);
+    
     abAppend(&ab, buf, len);
 
-    abAppend(&ab, "\033[?25h", 6);
     write(STDOUT_FILENO, ab.b, ab.len);
     abFree(&ab);
 }
