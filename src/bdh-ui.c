@@ -35,46 +35,54 @@ void draw_ui() {
     char buf[2048];
     int len;
 
-    abAppend(&ab, "\033[?25l", 6); 
-    // 🔥 GLITCH FIX 2: Disable Line Wrap (Prevents auto-scrolling bouncing effect)
-    abAppend(&ab, "\033[?7l", 5);  
-    abAppend(&ab, "\033[H", 3); 
+    abAppend(&ab, "\033[?25l", 6); // கர்சரை மறைக்கிறோம்
+    abAppend(&ab, "\033[?7l", 5);  // Line Wrap முடக்கம் (ஸ்க்ரோலிங்கைத் தடுக்கும்)
 
-    for (int i = 1; i <= total_rows - term_height; i++) {
-        len = snprintf(buf, sizeof(buf), "\033[%d;%dH\033[1;30m│\033[0m", i, divider_col);
+    // Tree Pane-ஐ க்ளியர் செய்வதற்கான வெற்றிடங்கள் (Spaces)
+    char pad_spaces[1024] = "";
+    for (int i = 0; i < divider_col; i++) {
+        if (i < 1023) pad_spaces[i] = ' ';
+    }
+    pad_spaces[divider_col] = '\0';
+
+    // --- 1. LEFT PANE (TREE) ---
+    char tree_hdr[256];
+    snprintf(tree_hdr, sizeof(tree_hdr), "%s", focus == 0 ? "\033[1;42m[ BDH-TREE (ACTIVE) ]\033[0m" : "\033[1;37m[ BDH-TREE ]\033[0m");
+    int hdr_len = focus == 0 ? 21 : 12;
+    len = snprintf(buf, sizeof(buf), "\033[1;1H%s", tree_hdr);
+    abAppend(&ab, buf, len);
+    if (divider_col - hdr_len > 0) {
+        len = snprintf(buf, sizeof(buf), "%.*s", divider_col - hdr_len, pad_spaces);
         abAppend(&ab, buf, len);
     }
-    len = snprintf(buf, sizeof(buf), "\033[%d;%dH\033[1;36m[<]\033[0m", (total_rows - term_height) / 2 - 1, divider_col - 1);
-    abAppend(&ab, buf, len);
-    len = snprintf(buf, sizeof(buf), "\033[%d;%dH\033[1;36m[>]\033[0m", (total_rows - term_height) / 2 + 1, divider_col - 1);
-    abAppend(&ab, buf, len);
 
-    for (int i = 1; i <= total_cols; i++) {
-        len = snprintf(buf, sizeof(buf), "\033[%d;%dH\033[1;30m─\033[0m", total_rows - term_height + 1, i);
-        abAppend(&ab, buf, len);
-    }
-    len = snprintf(buf, sizeof(buf), "\033[%d;%dH\033[1;36m[ - ]   [ + ]\033[0m", total_rows - term_height + 1, (total_cols / 2) - 6);
-    abAppend(&ab, buf, len);
-
-    len = snprintf(buf, sizeof(buf), "\033[1;1H%s\033[K\r\n", 
-                   focus == 0 ? "\033[1;42m[ BDH-TREE (ACTIVE) ]\033[0m" : "\033[1;37m[ BDH-TREE ]\033[0m");
-    abAppend(&ab, buf, len);
-    
     char clipped_cwd[256];
     int max_pwd_width = divider_col - 8;
     if (max_pwd_width < 5) max_pwd_width = 5;
     strncpy(clipped_cwd, cwd, max_pwd_width);
     clipped_cwd[max_pwd_width] = '\0';
     
-    len = snprintf(buf, sizeof(buf), "\033[1;33m PWD: %s \033[0m\033[K\r\n\r\n", clipped_cwd);
+    char pwd_str[512];
+    snprintf(pwd_str, sizeof(pwd_str), "\033[1;33m PWD: %s \033[0m", clipped_cwd);
+    int pwd_vis_len = 6 + strlen(clipped_cwd) + 1;
+    len = snprintf(buf, sizeof(buf), "\033[2;1H%s", pwd_str);
     abAppend(&ab, buf, len);
-    
+    if (divider_col - pwd_vis_len > 0) {
+        len = snprintf(buf, sizeof(buf), "%.*s", divider_col - pwd_vis_len, pad_spaces);
+        abAppend(&ab, buf, len);
+    }
+
+    // Row 3 Empty
+    len = snprintf(buf, sizeof(buf), "\033[3;1H%.*s", divider_col, pad_spaces);
+    abAppend(&ab, buf, len);
+
     int max_display = total_rows - term_height - 4; 
     if (max_display < 5) max_display = 5;
 
     if (selected_idx < window_start) window_start = selected_idx;
     else if (selected_idx >= window_start + max_display) window_start = selected_idx - max_display + 1;
-    
+
+    int tree_row = 4;
     for (int i = window_start; i < file_count && i < window_start + max_display; i++) {
         int max_name_len = divider_col - 8;
         if (max_name_len < 4) max_name_len = 4;
@@ -96,13 +104,27 @@ void draw_ui() {
         
         int current_len = strlen(display_name) + 7; 
         for (int spaces = current_len; spaces < divider_col; spaces++) strcat(row_buf, " ");
-        strcat(row_buf, "\033[K\r\n");
-        abAppend(&ab, row_buf, strlen(row_buf));
+        
+        // 🔥 \r\n நீக்கப்பட்டு, Absolute Position பயன்படுத்தப்பட்டுள்ளது
+        len = snprintf(buf, sizeof(buf), "\033[%d;1H%s", tree_row, row_buf);
+        abAppend(&ab, buf, len);
+        tree_row++;
+    }
+    
+    // Tree Pane-ல் மீதமுள்ள வெற்றிடங்களை க்ளியர் செய்ய
+    while (tree_row <= total_rows - term_height) {
+        len = snprintf(buf, sizeof(buf), "\033[%d;1H%.*s", tree_row, divider_col, pad_spaces);
+        abAppend(&ab, buf, len);
+        tree_row++;
     }
 
+    // --- 2. RIGHT PANE (EDITOR/DB) ---
     if (focus == 0 || focus == 1 || focus == 3) {
         len = snprintf(buf, sizeof(buf), "\033[1;%dH%s%s ]\033[0m\033[K", divider_col + 2, 
                        focus == 1 ? "\033[1;44m[ BDH-EDIT (ACTIVE) - File: " : "\033[1;37m[ BDH-EDIT - File: ", current_file);
+        abAppend(&ab, buf, len);
+
+        len = snprintf(buf, sizeof(buf), "\033[2;%dH\033[K", divider_col + 2);
         abAppend(&ab, buf, len);
 
         int row = 3;
@@ -150,19 +172,32 @@ void draw_ui() {
         len = snprintf(buf, sizeof(buf), "\033[1;%dH\033[1;45m[ BDH-DB CONSOLE (ACTIVE) - PostgreSQL ]\033[0m\033[K", divider_col + 2);
         abAppend(&ab, buf, len);
         
+        len = snprintf(buf, sizeof(buf), "\033[2;%dH\033[K", divider_col + 2);
+        abAppend(&ab, buf, len);
+
         len = snprintf(buf, sizeof(buf), "\033[3;%dH\033[1;36mSQL > \033[0m%s\033[K", divider_col + 2, db_query_buf);
         abAppend(&ab, buf, len);
         
+        len = snprintf(buf, sizeof(buf), "\033[4;%dH\033[K", divider_col + 2);
+        abAppend(&ab, buf, len);
+
         len = snprintf(buf, sizeof(buf), "\033[5;%dH\033[1;30mStatus: %s\033[0m\033[K", divider_col + 2, 
                        (db_conn != NULL) ? "\033[1;32mConnected\033[0m" : "\033[1;31mDisconnected\033[0m");
         abAppend(&ab, buf, len);
+
+        for (int r = 6; r <= total_rows - term_height; r++) {
+            len = snprintf(buf, sizeof(buf), "\033[%d;%dH\033[K", r, divider_col + 2);
+            abAppend(&ab, buf, len);
+        }
     }
 
-    len = snprintf(buf, sizeof(buf), "\033[%d;1H%s PWD: %s\033[K", total_rows - term_height + 2,
+    // --- 3. BOTTOM PANE (TERMINAL) ---
+    int term_start_row = total_rows - term_height + 2;
+    len = snprintf(buf, sizeof(buf), "\033[%d;1H%s PWD: %s\033[K", term_start_row,
                    focus == 3 ? "\033[1;46m[ BDH-TERMINAL (ACTIVE) ]\033[0m" : "\033[1;37m[ BDH-TERMINAL ]\033[0m", cwd);
     abAppend(&ab, buf, len);
 
-    len = snprintf(buf, sizeof(buf), "\033[%d;1H\033[1;32m $\033[0m %s\033[K", total_rows - term_height + 3, term_cmd_buf);
+    len = snprintf(buf, sizeof(buf), "\033[%d;1H\033[1;32m $\033[0m %s\033[K", term_start_row + 1, term_cmd_buf);
     abAppend(&ab, buf, len);
 
     int max_out_lines = term_height - 4;
@@ -170,18 +205,38 @@ void draw_ui() {
     
     for (int i = 0; i < max_out_lines; i++) {
         len = snprintf(buf, sizeof(buf), "\033[%d;1H\033[1;30m > \033[0m%s\033[K", 
-                       total_rows - term_height + 4 + i, term_output[50 - max_out_lines + i]);
+                       term_start_row + 2 + i, term_output[50 - max_out_lines + i]);
         abAppend(&ab, buf, len);
     }
 
+    // --- 4. BORDERS (பின்னணியை வரைந்த பிறகு பார்டர்களை வரைய வேண்டும்!) ---
+    for (int i = 1; i <= total_rows - term_height; i++) {
+        len = snprintf(buf, sizeof(buf), "\033[%d;%dH\033[1;30m│\033[0m", i, divider_col);
+        abAppend(&ab, buf, len);
+    }
+    len = snprintf(buf, sizeof(buf), "\033[%d;%dH\033[1;36m[<]\033[0m", (total_rows - term_height) / 2 - 1, divider_col - 1);
+    abAppend(&ab, buf, len);
+    len = snprintf(buf, sizeof(buf), "\033[%d;%dH\033[1;36m[>]\033[0m", (total_rows - term_height) / 2 + 1, divider_col - 1);
+    abAppend(&ab, buf, len);
+
+    int horiz_row = total_rows - term_height + 1;
+    len = snprintf(buf, sizeof(buf), "\033[%d;1H\033[K", horiz_row);
+    abAppend(&ab, buf, len);
+    for (int i = 1; i <= total_cols; i++) {
+        len = snprintf(buf, sizeof(buf), "\033[%d;%dH\033[1;30m─\033[0m", horiz_row, i);
+        abAppend(&ab, buf, len);
+    }
+    len = snprintf(buf, sizeof(buf), "\033[%d;%dH\033[1;36m[ - ]   [ + ]\033[0m", horiz_row, (total_cols / 2) - 6);
+    abAppend(&ab, buf, len);
+
+    // --- 5. FOOTER ---
     len = snprintf(buf, sizeof(buf), "\033[%d;1H\033[1;33m [TAB]: Switch Pane | [Ctrl+T]: Terminal | [Ctrl+S]: Save | [Ctrl+P]: DB | [Q]/[ESC]: Quit \033[0m\033[K", total_rows);
     abAppend(&ab, buf, len);
 
-    // 🔥 GLITCH FIX 2: Re-enable Line Wrap
+    // --- 6. CURSOR FIX & POSITIONING ---
     abAppend(&ab, "\033[?7h", 5); 
     abAppend(&ab, "\033[?25h", 6); 
 
-    // 🔥 EDITOR CURSOR FIX: கர்சர் எல்லையை மீறாமல் பார்த்துக் கொள்ளும் லாஜிக்
     if (focus == 0) {
         len = snprintf(buf, sizeof(buf), "\033[%d;6H", (selected_idx - window_start) + 4);
     } else if (focus == 1) {
