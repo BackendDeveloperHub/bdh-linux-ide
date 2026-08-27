@@ -36,6 +36,8 @@ void draw_ui() {
     int len;
 
     abAppend(&ab, "\033[?25l", 6); 
+    // 🔥 GLITCH FIX 2: Disable Line Wrap (Prevents auto-scrolling bouncing effect)
+    abAppend(&ab, "\033[?7l", 5);  
     abAppend(&ab, "\033[H", 3); 
 
     for (int i = 1; i <= total_rows - term_height; i++) {
@@ -175,6 +177,8 @@ void draw_ui() {
     len = snprintf(buf, sizeof(buf), "\033[%d;1H\033[1;33m [TAB]: Switch Pane | [Ctrl+T]: Terminal | [Ctrl+S]: Save | [Ctrl+P]: DB | [Q]/[ESC]: Quit \033[0m\033[K", total_rows);
     abAppend(&ab, buf, len);
 
+    // 🔥 GLITCH FIX 2: Re-enable Line Wrap
+    abAppend(&ab, "\033[?7h", 5); 
     abAppend(&ab, "\033[?25h", 6); 
 
     if (focus == 0) len = snprintf(buf, sizeof(buf), "\033[%d;6H", (selected_idx - window_start) + 4);
