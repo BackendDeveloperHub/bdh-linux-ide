@@ -7,7 +7,7 @@
 #include "../include/bdh-tree.h"
 #include "../include/bdh-edit.h"
 #include "../include/bdh-db.h"
-#include "../include/bdh-ui.h" // UI மாட்யூல் இணைக்கப்பட்டுள்ளது
+#include "../include/bdh-ui.h" 
 
 int focus = 0; 
 int total_rows, total_cols, divider_col;
@@ -19,7 +19,8 @@ PGconn *db_conn = NULL;
 
 char term_cmd_buf[1024] = "";
 int term_cmd_len = 0;
-char term_output[7][1024] = {"", "", "", "", "", "", ""};
+// 🔥 50 Lines Storage
+char term_output[50][1024]; 
 
 void disable_raw_mode() { tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios); }
 void enable_raw_mode() {
@@ -46,22 +47,26 @@ void run_terminal_command() {
     FILE *fp = fopen(".bdh_term_out", "r");
     if (fp) {
         char line[1024];
-        for (int i = 0; i < 7; i++) strcpy(term_output[i], ""); 
+        for (int i = 0; i < 50; i++) strcpy(term_output[i], ""); 
         while (fgets(line, sizeof(line), fp)) {
             line[strcspn(line, "\n")] = 0;
-            for (int i = 0; i < 6; i++) strcpy(term_output[i], term_output[i+1]);
-            strncpy(term_output[6], line, 1023);
+            // 50 வரிகளை மேலே ஷிஃப்ட் செய்தல்
+            for (int i = 0; i < 49; i++) strcpy(term_output[i], term_output[i+1]);
+            strncpy(term_output[49], line, 1023);
         }
         fclose(fp);
     }
 }
 
 int main() {
+    // Array Initialization
+    for (int i = 0; i < 50; i++) strcpy(term_output[i], ""); 
+
     get_terminal_size();
     load_files(".");
     db_conn = db_connect("dbname=postgres user=postgres");
     
-    printf("\033[?1000h\033[?1006h"); // மவுஸ் டிராக்கிங் ON
+    printf("\033[?1000h\033[?1006h"); 
     enable_raw_mode();
     draw_ui();
 
@@ -69,22 +74,21 @@ int main() {
         char c;
         if (read(STDIN_FILENO, &c, 1) == 1) {
             
+            // 🔥 Strict TAB Logic (Tree -> Editor -> Terminal -> Tree)
             if (c == 9) { 
                 if (focus == 0) focus = 1;
                 else if (focus == 1) focus = 3;
                 else focus = 0; 
                 draw_ui(); continue; 
             }
-            if (c == 16) { focus = 2; draw_ui(); continue; } // Ctrl+P
-            if (c == 20) { focus = 3; draw_ui(); continue; } // Ctrl+T
+            if (c == 16) { focus = 2; draw_ui(); continue; } 
+            if (c == 20) { focus = 3; draw_ui(); continue; } 
 
             if (focus == 0) {
-                // --- 🔥 Dynamic Resize Shortcuts 🔥 ---
                 if (c == '+') { if (term_height < total_rows - 8) term_height++; draw_ui(); continue; }
                 if (c == '-') { if (term_height > 5) term_height--; draw_ui(); continue; }
                 if (c == '>') { if (tree_width_ratio < 0.8) tree_width_ratio += 0.05; get_terminal_size(); draw_ui(); continue; }
                 if (c == '<') { if (tree_width_ratio > 0.15) tree_width_ratio -= 0.05; get_terminal_size(); draw_ui(); continue; }
-                // ---------------------------------------
 
                 int status = handle_tree_input(c);
                 if (status == 0) break;
@@ -106,7 +110,6 @@ int main() {
                     }
                 }
             }
-            // --- 3. TERMINAL ---
             else if (focus == 3) {
                 if (c == '\033') focus = 0; 
                 else if (c == 127 || c == 8) { if (term_cmd_len > 0) term_cmd_buf[--term_cmd_len] = '\0'; }
@@ -114,22 +117,17 @@ int main() {
                 else if (c == '\n' || c == '\r') {
                     if (term_cmd_len > 0) {
                         
-                        // --- 🔥 CD Command Handle 🔥 ---
                         if (strncmp(term_cmd_buf, "cd ", 3) == 0) {
                             if (chdir(term_cmd_buf + 3) != 0) {
-                                // Directory மாறவில்லை என்றால் எரர் மெசேஜைக் காட்ட
-                                strcpy(term_output[6], "Directory not found!");
+                                strcpy(term_output[49], "Directory not found!");
                             } else {
-                                strcpy(term_output[6], "Changed directory successfully.");
+                                strcpy(term_output[49], "Changed directory successfully.");
                             }
                         } else {
-                            run_terminal_command(); // மற்ற எல்லா கமாண்டுகளுக்கும்
+                            run_terminal_command(); 
                         }
                         
                         term_cmd_len = 0; term_cmd_buf[0] = '\0'; 
-                        
-                        // --- 🔥 AUTO-REFRESH TREE 🔥 ---
-                        // புது ஃபைல்/ஃபோல்டர் உருவாக்கினால் உடனே Tree-யில் அப்டேட் ஆக
                         load_files("."); 
                     }
                 }
@@ -142,7 +140,7 @@ int main() {
     
     db_close(db_conn);
     remove(".bdh_term_out");
-    printf("\033[?1000l\033[?1006l"); // மவுஸ் டிராக்கிங் OFF
+    printf("\033[?1000l\033[?1006l"); 
     printf("\033[2J\033[H");
     return 0;
 }
