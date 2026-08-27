@@ -148,21 +148,23 @@ void draw_ui() {
     len = snprintf(buf, sizeof(buf), "\033[%d;1H\033[1;32m $\033[0m %s\033[K", total_rows - term_height + 3, term_cmd_buf);
     abAppend(&ab, buf, len);
 
-    int out_start_row = total_rows - term_height + 4;
-    for (int i = 0; i < 7; i++) {
-        if (out_start_row + i < total_rows) {
-            len = snprintf(buf, sizeof(buf), "\033[%d;1H\033[1;30m > \033[0m%s\033[K", out_start_row + i, term_output[i]);
-            abAppend(&ab, buf, len);
-        }
+    // 🔥 50 Lines Output Storage Rendering (Dynamic)
+    int max_out_lines = term_height - 4;
+    if (max_out_lines > 50) max_out_lines = 50;
+    
+    for (int i = 0; i < max_out_lines; i++) {
+        len = snprintf(buf, sizeof(buf), "\033[%d;1H\033[1;30m > \033[0m%s\033[K", 
+                       total_rows - term_height + 4 + i, term_output[50 - max_out_lines + i]);
+        abAppend(&ab, buf, len);
     }
 
     // 6. Footer
     len = snprintf(buf, sizeof(buf), "\033[%d;1H\033[1;33m [TAB]: Switch Pane | [Ctrl+T]: Terminal | [Ctrl+S]: Save | [Ctrl+P]: DB | [Q]/[ESC]: Quit \033[0m\033[K", total_rows);
     abAppend(&ab, buf, len);
 
-    // Cursor Positioning
+    // 🔥 Dynamic Cursor Positioning (Fix for Editor Cursor visibility)
     if (focus == 0) len = snprintf(buf, sizeof(buf), "\033[%d;6H", (selected_idx - window_start) + 4);
-    else if (focus == 1) len = snprintf(buf, sizeof(buf), "\033[3;%dH", divider_col + 2);
+    else if (focus == 1) len = snprintf(buf, sizeof(buf), "\033[%d;%dH", 3 + editor_cy, divider_col + 2 + editor_cx); 
     else if (focus == 2) len = snprintf(buf, sizeof(buf), "\033[3;%dH", divider_col + 8 + db_query_len);
     else if (focus == 3) len = snprintf(buf, sizeof(buf), "\033[%d;%dH", total_rows - term_height + 3, 4 + term_cmd_len);
     abAppend(&ab, buf, len);
